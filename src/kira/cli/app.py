@@ -58,6 +58,10 @@ def main(
         bool,
         typer.Option("--verbose", "-v", help="Verbose output"),
     ] = False,
+    pty_mode: Annotated[
+        bool,
+        typer.Option("--pty", help="Use PTY passthrough mode (experimental)"),
+    ] = False,
 ):
     """Agentic CLI powered by kiro-cli.
 
@@ -83,6 +87,17 @@ def main(
     """
     # If a subcommand was invoked, let it handle things
     if ctx.invoked_subcommand is not None:
+        return
+
+    # PTY mode - experimental passthrough to kiro-cli
+    if pty_mode:
+        from .repl_pty import run_pty_repl
+
+        run_pty_repl(
+            model=model,
+            skills=skill,
+            memory=not no_memory,
+        )
         return
 
     # Default: start interactive REPL
