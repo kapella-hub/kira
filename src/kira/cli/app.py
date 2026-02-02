@@ -336,7 +336,11 @@ async def _run_one_shot(
         log_store.end_run(run_id)
         raise typer.Exit(1)
 
-    # Stream output
+    # Collect output
+    from rich.live import Live
+    from rich.spinner import Spinner
+    from .formatter import OutputFormatter
+
     collected_output: list[str] = []
     start_time = time.time()
 
@@ -347,10 +351,13 @@ async def _run_one_shot(
         model=resolved_model,
     )
 
+    # Show spinner while collecting response
+    spinner = Spinner("dots", text="[dim]thinking...[/dim]", style="cyan")
+
     try:
-        async for chunk in client.run(full_prompt, agent=agent, resume=resume):
-            console.print(chunk, end="")
-            collected_output.append(chunk)
+        with Live(spinner, console=console, refresh_per_second=10, transient=True):
+            async for chunk in client.run(full_prompt, agent=agent, resume=resume):
+                collected_output.append(chunk)
     except KeyboardInterrupt:
         console.print("\n[dim]Interrupted[/dim]")
         duration = time.time() - start_time
@@ -358,11 +365,16 @@ async def _run_one_shot(
         log_store.end_run(run_id)
         raise typer.Exit(130)
 
+    # Format and display output
+    full_output = "".join(collected_output)
+    if full_output.strip():
+        formatter = OutputFormatter(console)
+        formatter.format(full_output)
+
     console.print()  # Final newline
 
     # Update log entry with response
     duration = time.time() - start_time
-    full_output = "".join(collected_output)
     log_store.update_entry_response(entry_id, full_output, duration)
     log_store.end_run(run_id)
 
@@ -470,22 +482,34 @@ async def _run_thinking(
     # Build execution prompt with full context
     execution_prompt = _build_execution_prompt(prompt, result)
 
+    from rich.live import Live
+    from rich.spinner import Spinner
+    from .formatter import OutputFormatter
+
     executor = ThinkingExecutor(client, session_manager)
     collected_output: list[str] = []
 
+    # Show spinner while collecting response
+    spinner = Spinner("dots", text="[dim]executing...[/dim]", style="cyan")
+
     try:
-        async for chunk in client.run(execution_prompt):
-            console.print(chunk, end="")
-            collected_output.append(chunk)
+        with Live(spinner, console=console, refresh_per_second=10, transient=True):
+            async for chunk in client.run(execution_prompt):
+                collected_output.append(chunk)
     except KeyboardInterrupt:
         console.print("\n[dim]Interrupted[/dim]")
         raise typer.Exit(130)
+
+    # Format and display output
+    full_output = "".join(collected_output)
+    if full_output.strip():
+        formatter = OutputFormatter(console)
+        formatter.format(full_output)
 
     console.print()  # Final newline
 
     # Extract and save memories
     if not no_memory and config.memory.auto_extract:
-        full_output = "".join(collected_output)
         saved = session_manager.save_memories(full_output)
         if saved > 0 and verbose:
             print_success(f"Saved {saved} memory entries")
