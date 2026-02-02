@@ -1436,6 +1436,13 @@ class InteractiveREPL:
         # Get full output
         full_output = "".join(collected)
 
+        # Debug: dump raw output if KIRA_DEBUG is set
+        import os
+        if os.environ.get("KIRA_DEBUG"):
+            self.console.print(f"\n[yellow]--- RAW OUTPUT ({len(full_output)} chars) ---[/]")
+            self.console.print(repr(full_output[:500]))
+            self.console.print(f"[yellow]--- END RAW ---[/]\n")
+
         # Render formatted output
         if full_output.strip():
             formatter = OutputFormatter(self.console)
