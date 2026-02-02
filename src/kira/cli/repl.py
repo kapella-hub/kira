@@ -1218,7 +1218,9 @@ class InteractiveREPL:
         session_manager: SessionManager,
         client: KiraClient,
     ) -> None:
-        """Send a message and stream the response."""
+        """Send a message and display formatted response."""
+        from .formatter import OutputFormatter
+
         self.message_count += 1
         start_time = time.time()
 
@@ -1244,19 +1246,13 @@ class InteractiveREPL:
 
         # Collect response with spinner
         collected: list[str] = []
-        first_chunk = True
 
-        # Use Live for spinner that transitions to streaming
+        # Show spinner while collecting response
         spinner = Spinner("dots", text=f"[{COLORS['muted']}]thinking...[/]", style=COLORS['primary'])
 
         try:
             with Live(spinner, console=self.console, refresh_per_second=10, transient=True) as live:
                 async for chunk in client.run(full_prompt, agent=self.agent, resume=self.resume):
-                    if first_chunk:
-                        live.stop()
-                        first_chunk = False
-
-                    self.console.print(chunk, end="", highlight=False)
                     collected.append(chunk)
                     self.resume = False
 
@@ -1277,6 +1273,11 @@ class InteractiveREPL:
 
         # Get full output
         full_output = "".join(collected)
+
+        # Render formatted output
+        if full_output.strip():
+            formatter = OutputFormatter(self.console)
+            formatter.format(full_output)
 
         # Show duration in verbose mode
         duration = time.time() - start_time
