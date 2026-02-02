@@ -232,7 +232,7 @@ class SessionManager:
                     tags=extracted.suggested_tags,
                     importance=extracted.suggested_importance,
                     memory_type=extracted.memory_type,
-                    source=MemorySource.AUTO,
+                    source=MemorySource.EXTRACTED,
                 )
                 saved += 1
 
@@ -280,7 +280,7 @@ class SessionManager:
             tags=["session", "conversation"],
             importance=6,
             memory_type=MemoryType.EPISODIC,
-            source=MemorySource.AUTO,
+            source=MemorySource.EXTRACTED,
         )
 
     def add_memory(
