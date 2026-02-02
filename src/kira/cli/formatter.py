@@ -371,16 +371,27 @@ class OutputFormatter:
 
             # Definitely code patterns
             code_patterns = [
+                r'^#!',  # Shebang
                 r'^(interface|class|function|def|const|let|var|import|export|from|type|enum)\b',
                 r'^(public|private|protected|static|async|await)\b',
                 r'^\s*[{}\[\]()]',
                 r'^[a-zA-Z_]\w*\s*[(={:]',
-                r'^\s*//|^\s*/\*',  # Comments
+                r'^\s*//|^\s*/\*',  # C-style comments
+                r'^#\s*\w',  # Shell/Python comments (# followed by word char)
                 r'=>|->|\|\||&&',
                 r'^\s*@\w+',  # Decorators
                 r'^\s*self\.',  # Python self
                 r'^\s*return\b',
                 r'^\s*(if|for|while|try|except|with)\b.*:',
+                # Shell patterns
+                r'^[A-Z_][A-Z0-9_]*=',  # Shell variable assignment (THRESHOLD=90)
+                r'^\s*(echo|printf|read|exit|source|chmod|chown|mkdir|rm|cp|mv|cat|grep|awk|sed|sudo)\b',
+                r'^\s*(fi|done|esac|then|else|elif|do)\b',  # Shell keywords
+                r'^\s*\[\[?\s',  # Shell test brackets
+                r'^\$\(',  # Command substitution
+                r'^\s*(while|for|if|until)\s+.*;\s*do',  # Shell loops: while true; do
+                r'^\s*(if|elif)\s+\[',  # Shell conditionals: if [ ... ]
+                r'sleep\s+\d',  # sleep command
             ]
 
             for pattern in code_patterns:
@@ -398,10 +409,15 @@ class OutputFormatter:
             # Code patterns that should NOT be treated as prose
             # even if they end with a colon (Python class/def/if/etc.)
             code_intro_patterns = [
+                r'^#!',  # Shebang
                 r'^(class|def|if|elif|else|for|while|with|try|except|finally|async|match|case)\b',
                 r'^(interface|type|enum|function|const|let|var|export|import)\b',
                 r'^(public|private|protected|static)\b',
                 r'^\s*@\w+',  # Decorators
+                # Shell patterns
+                r'^[A-Z_][A-Z0-9_]*=',  # Variable assignment
+                r'^(echo|printf|sudo|chmod|fi|done|esac|then|do)\b',
+                r'^#\s*[a-z_]',  # Shell comment (lowercase after #, not markdown header)
             ]
             for pattern in code_intro_patterns:
                 if re.search(pattern, stripped, re.IGNORECASE):
