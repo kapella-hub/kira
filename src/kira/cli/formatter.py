@@ -157,6 +157,9 @@ class OutputFormatter:
         Args:
             text: Response content to format.
         """
+        # Pre-process to convert inline code patterns to fenced blocks
+        text = self._convert_inline_code(text)
+
         # Split text into code blocks and other content
         parts = self._split_content(text)
 
@@ -165,6 +168,111 @@ class OutputFormatter:
                 self._render_code_block(part)
             else:
                 self._render_markdown(part["content"])
+
+    def _convert_inline_code(self, text: str) -> str:
+        """Convert inline code patterns to fenced code blocks.
+
+        Detects patterns like:
+        - json { ... }  (language followed by inline code)
+        - Request: { ... } Response: { ... }
+
+        Args:
+            text: Text to process.
+
+        Returns:
+            Text with inline code converted to fenced blocks.
+        """
+        import json as json_mod
+
+        def extract_json_object(text: str, start: int) -> tuple[str, int] | None:
+            """Extract a complete JSON object handling nested braces."""
+            if start >= len(text) or text[start] != '{':
+                return None
+            depth = 0
+            in_string = False
+            escape = False
+            for i in range(start, len(text)):
+                c = text[i]
+                if escape:
+                    escape = False
+                    continue
+                if c == '\\' and in_string:
+                    escape = True
+                    continue
+                if c == '"' and not escape:
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+                if c == '{':
+                    depth += 1
+                elif c == '}':
+                    depth -= 1
+                    if depth == 0:
+                        return text[start:i+1], i+1
+            return None
+
+        def format_json(code: str) -> str:
+            """Try to pretty-format JSON."""
+            try:
+                parsed = json_mod.loads(code)
+                return json_mod.dumps(parsed, indent=2)
+            except:
+                return code
+
+        # Pattern: language name followed by { on same line
+        # e.g., "json { "key": "value" }"
+        result = []
+        i = 0
+        inline_lang = re.compile(r'\b(json|javascript|python|typescript)\s*\{', re.IGNORECASE)
+
+        lines = text.split('\n')
+        new_lines = []
+
+        for line in lines:
+            # Check for "json {" pattern
+            match = inline_lang.search(line)
+            if match:
+                lang = match.group(1).lower()
+                json_start = match.end() - 1  # Position of {
+                extracted = extract_json_object(line, json_start)
+                if extracted:
+                    code, end_pos = extracted
+                    before = line[:match.start()]
+                    after = line[end_pos:]
+                    formatted = format_json(code)
+                    new_lines.append(before.rstrip())
+                    new_lines.append(f"```{lang}")
+                    new_lines.append(formatted)
+                    new_lines.append("```")
+                    if after.strip():
+                        new_lines.append(after.lstrip())
+                    continue
+
+            # Check for "Request: {" or "Response 201: {" pattern
+            req_match = re.search(r'(Request|Response(?:\s+\d+)?)\s*:\s*\{', line, re.IGNORECASE)
+            if req_match:
+                label = req_match.group(1)
+                json_start = req_match.end() - 1
+                extracted = extract_json_object(line, json_start)
+                if extracted:
+                    code, end_pos = extracted
+                    before = line[:req_match.start()]
+                    after = line[end_pos:]
+                    formatted = format_json(code)
+                    if before.strip():
+                        new_lines.append(before.rstrip())
+                    new_lines.append(f"**{label}:**")
+                    new_lines.append("```json")
+                    new_lines.append(formatted)
+                    new_lines.append("```")
+                    if after.strip():
+                        new_lines.append(after.lstrip())
+                    continue
+
+            new_lines.append(line)
+
+        return '\n'.join(new_lines)
 
     def _split_content(self, text: str) -> list[dict]:
         """Split text into code blocks and markdown sections.
