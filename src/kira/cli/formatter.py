@@ -10,10 +10,13 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.syntax import Syntax
+from rich.text import Text
 
 if TYPE_CHECKING:
     pass
 
+# Box drawing and ASCII art characters that should be preserved
+ASCII_ART_CHARS = set("│┌┐└┘├┤┬┴┼─═║╔╗╚╝╠╣╦╩╬▀▄█▌▐░▒▓■□▪▫●○◆◇★☆►◄▲▼←→↑↓↔↕")
 
 # Language aliases for syntax highlighting
 LANGUAGE_ALIASES = {
@@ -321,7 +324,7 @@ class OutputFormatter:
             self.console.print(panel)
 
     def _render_markdown(self, content: str) -> None:
-        """Render markdown content.
+        """Render markdown content, preserving ASCII art.
 
         Args:
             content: Markdown text to render.
@@ -330,9 +333,80 @@ class OutputFormatter:
         if not content:
             return
 
-        # Use Rich's markdown renderer
-        md = Markdown(content)
-        self.console.print(md)
+        # Split content and handle ASCII art sections separately
+        sections = self._split_ascii_art(content)
+
+        for section in sections:
+            if section["type"] == "ascii_art":
+                # Print ASCII art as-is to preserve formatting
+                self.console.print(section["content"], highlight=False)
+            elif section["type"] == "markdown":
+                # Use Rich's markdown renderer
+                text = section["content"].strip()
+                if text:
+                    md = Markdown(text)
+                    self.console.print(md)
+
+    def _split_ascii_art(self, content: str) -> list[dict]:
+        """Split content into ASCII art and markdown sections.
+
+        Args:
+            content: Text content to split.
+
+        Returns:
+            List of dicts with 'type' ('ascii_art' or 'markdown') and 'content'.
+        """
+        lines = content.split("\n")
+        sections = []
+        current_type = None
+        current_lines = []
+
+        for line in lines:
+            is_ascii = self._is_ascii_art_line(line)
+            line_type = "ascii_art" if is_ascii else "markdown"
+
+            if current_type is None:
+                current_type = line_type
+                current_lines = [line]
+            elif line_type == current_type:
+                current_lines.append(line)
+            else:
+                # Type changed, save current section
+                if current_lines:
+                    sections.append({
+                        "type": current_type,
+                        "content": "\n".join(current_lines),
+                    })
+                current_type = line_type
+                current_lines = [line]
+
+        # Don't forget the last section
+        if current_lines:
+            sections.append({
+                "type": current_type,
+                "content": "\n".join(current_lines),
+            })
+
+        return sections
+
+    def _is_ascii_art_line(self, line: str) -> bool:
+        """Check if a line contains ASCII art characters.
+
+        Args:
+            line: Line to check.
+
+        Returns:
+            True if line appears to be ASCII art.
+        """
+        if not line.strip():
+            return False
+
+        # Check if line contains box drawing or ASCII art characters
+        ascii_count = sum(1 for c in line if c in ASCII_ART_CHARS)
+
+        # If more than 2 ASCII art characters, treat as ASCII art
+        # This helps preserve org charts, tables, diagrams
+        return ascii_count >= 2
 
 
 def format_output(text: str, console: Console | None = None) -> None:
