@@ -756,6 +756,42 @@ def version():
         print_info("kiro-cli: not found")
 
 
+@app.command("update")
+def update():
+    """Update kira to the latest version."""
+    import subprocess
+    import sys
+
+    from .. import __version__
+
+    console.print(f"[dim]Current version: {__version__}[/dim]")
+    console.print("Updating kira...")
+
+    # Run pip upgrade
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--user",
+            "--upgrade",
+            "git+https://github.com/kapella-hub/kira.git",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode == 0:
+        console.print("[green]✓[/green] Updated successfully")
+        console.print("[dim]Restart your shell to use the new version[/dim]")
+    else:
+        console.print(f"[red]✗[/red] Update failed")
+        if result.stderr:
+            console.print(f"[dim]{result.stderr.strip()}[/dim]")
+        raise typer.Exit(1)
+
+
 @app.command("status")
 def status():
     """Show system status."""

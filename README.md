@@ -13,13 +13,24 @@ Agentic CLI wrapper for [kiro-cli](https://kiro.dev) with persistent memory, ski
 
 ## Installation
 
+**macOS/Linux:**
 ```bash
-# Ensure kiro-cli is installed first
-# See https://kiro.dev for installation
-
-# Install kira
-pip install -e .
+curl -sSL https://raw.githubusercontent.com/kapella-hub/kira/main/install.sh | bash
 ```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/kapella-hub/kira/main/install.ps1 | iex
+```
+
+**Update:**
+```bash
+kira update
+```
+
+**Requirements:**
+- Python 3.12+
+- [kiro-cli](https://kiro.dev) (for LLM interaction)
 
 ## Quick Start
 
