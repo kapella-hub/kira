@@ -63,7 +63,7 @@ COMMANDS = [
     "/memory", "/thinking", "/autonomous", "/personality",
     "/verbose", "/trust", "/timeout",
     "/status", "/compact", "/history",
-    "/context", "/logs", "/cd",
+    "/context", "/logs", "/cd", "/view",
 ]
 
 # Context subcommands for completion
@@ -280,6 +280,7 @@ class InteractiveREPL:
             ("/exit", "Exit the REPL"),
             ("/clear", "Clear screen"),
             ("/cd <path>", "Change working directory"),
+            ("/view <file>[:lines]", "View file with syntax highlighting"),
             ("/status", "Show system status"),
             ("/config", "Show all settings"),
             ("/config save", "Save settings to disk"),
@@ -486,6 +487,9 @@ class InteractiveREPL:
 
         elif command == "/cd":
             self._change_directory(args)
+
+        elif command == "/view":
+            self._view_file(args)
 
         else:
             self._print_warning(f"Unknown command: {command}")
@@ -1114,6 +1118,164 @@ class InteractiveREPL:
         # Check for project context
         if self.context_manager.exists():
             self.console.print(f"[{COLORS['muted']}]Found project context[/]")
+
+    def _view_file(self, args: str) -> None:
+        """View a file with syntax highlighting and line numbers.
+
+        Usage:
+            /view path/to/file.py           - View entire file
+            /view path/to/file.py:50        - View from line 50
+            /view path/to/file.py:50-100    - View lines 50-100
+        """
+        from rich.syntax import Syntax
+
+        if not args:
+            self.console.print(f"[{COLORS['primary']}]Usage:[/] /view <file>[:line[-end]]")
+            self.console.print(f"[{COLORS['muted']}]Examples:[/]")
+            self.console.print(f"  /view src/app.py          [dim]View entire file[/dim]")
+            self.console.print(f"  /view src/app.py:50       [dim]View from line 50[/dim]")
+            self.console.print(f"  /view src/app.py:50-100   [dim]View lines 50-100[/dim]")
+            return
+
+        # Parse file path and optional line range
+        start_line = 1
+        end_line = None
+
+        if ':' in args:
+            path_part, line_part = args.rsplit(':', 1)
+            if '-' in line_part:
+                try:
+                    start_str, end_str = line_part.split('-', 1)
+                    start_line = int(start_str)
+                    end_line = int(end_str)
+                except ValueError:
+                    path_part = args  # Not a valid range, treat as path
+            else:
+                try:
+                    start_line = int(line_part)
+                except ValueError:
+                    path_part = args  # Not a valid line number, treat as path
+        else:
+            path_part = args
+
+        # Resolve path
+        file_path = Path(path_part).expanduser()
+        if not file_path.is_absolute():
+            file_path = Path.cwd() / file_path
+        file_path = file_path.resolve()
+
+        if not file_path.exists():
+            self._print_error(f"File not found: {file_path}")
+            return
+
+        if not file_path.is_file():
+            self._print_error(f"Not a file: {file_path}")
+            return
+
+        # Read file content
+        try:
+            content = file_path.read_text()
+        except Exception as e:
+            self._print_error(f"Cannot read file: {e}")
+            return
+
+        # Detect language from extension
+        ext_to_lang = {
+            '.py': 'python',
+            '.js': 'javascript',
+            '.ts': 'typescript',
+            '.tsx': 'typescript',
+            '.jsx': 'javascript',
+            '.java': 'java',
+            '.go': 'go',
+            '.rs': 'rust',
+            '.rb': 'ruby',
+            '.php': 'php',
+            '.c': 'c',
+            '.cpp': 'cpp',
+            '.h': 'c',
+            '.hpp': 'cpp',
+            '.cs': 'csharp',
+            '.swift': 'swift',
+            '.kt': 'kotlin',
+            '.scala': 'scala',
+            '.sh': 'bash',
+            '.bash': 'bash',
+            '.zsh': 'zsh',
+            '.json': 'json',
+            '.yaml': 'yaml',
+            '.yml': 'yaml',
+            '.toml': 'toml',
+            '.xml': 'xml',
+            '.html': 'html',
+            '.css': 'css',
+            '.scss': 'scss',
+            '.sql': 'sql',
+            '.md': 'markdown',
+            '.dockerfile': 'dockerfile',
+        }
+
+        suffix = file_path.suffix.lower()
+        language = ext_to_lang.get(suffix, 'text')
+
+        # Handle Dockerfile without extension
+        if file_path.name.lower() == 'dockerfile':
+            language = 'dockerfile'
+
+        # Calculate line range
+        lines = content.split('\n')
+        total_lines = len(lines)
+
+        if end_line is None:
+            # Show from start_line to end (or reasonable chunk)
+            if start_line > 1:
+                end_line = min(start_line + 50, total_lines)  # Show 50 lines by default
+            else:
+                end_line = total_lines
+
+        # Clamp to valid range
+        start_line = max(1, min(start_line, total_lines))
+        end_line = max(start_line, min(end_line, total_lines))
+
+        # Extract the lines
+        selected_lines = lines[start_line - 1:end_line]
+        selected_content = '\n'.join(selected_lines)
+
+        # Create syntax display
+        syntax = Syntax(
+            selected_content,
+            language,
+            line_numbers=True,
+            start_line=start_line,
+            theme="monokai",
+            word_wrap=True,
+            background_color="default",
+        )
+
+        # Show in panel with file info
+        from rich.panel import Panel
+
+        # Build title with file info
+        rel_path = file_path.relative_to(Path.cwd()) if file_path.is_relative_to(Path.cwd()) else file_path
+        if start_line > 1 or end_line < total_lines:
+            title = f"[bold cyan]{rel_path}[/] [dim]({start_line}-{end_line} of {total_lines})[/dim]"
+        else:
+            title = f"[bold cyan]{rel_path}[/] [dim]({total_lines} lines)[/dim]"
+
+        panel = Panel(
+            syntax,
+            title=title,
+            title_align="left",
+            border_style="dim",
+            box=ROUNDED,
+            padding=(0, 1),
+        )
+        self.console.print(panel)
+
+        # Show navigation hint if not showing all
+        if end_line < total_lines:
+            next_start = end_line + 1
+            self.console.print(f"[{COLORS['muted']}]More: /view {path_part}:{next_start}[/]")
 
     def _show_logs(self, args: str) -> None:
         """Show run logs."""

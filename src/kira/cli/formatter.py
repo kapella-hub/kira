@@ -59,10 +59,17 @@ class OutputFormatter:
     2. Response content (formatted with markdown/syntax highlighting)
     """
 
-    # Pattern to match fenced code blocks
+    # Pattern to match fenced code blocks (```lang ... ```)
     CODE_BLOCK_PATTERN = re.compile(
         r"```(\w+)?[ \t]*\n(.*?)```",
         re.DOTALL,
+    )
+
+    # Pattern to match unfenced code blocks (language name on its own line followed by code)
+    # e.g., "typescript\ninterface User { ... }"
+    UNFENCED_CODE_PATTERN = re.compile(
+        r"^(typescript|javascript|python|java|go|rust|ruby|sql|bash|shell|json|yaml|html|css|c|cpp|csharp|php|swift|kotlin)\n((?:[ \t].*\n?|[a-zA-Z_].*[{(\[].*\n?)+)",
+        re.MULTILINE | re.IGNORECASE,
     )
 
     def __init__(self, console: Console | None = None, theme: str = "monokai"):
@@ -280,6 +287,9 @@ class OutputFormatter:
         Returns:
             List of dicts with 'type' ('code' or 'markdown') and content.
         """
+        # First, convert unfenced code blocks to fenced ones
+        text = self._convert_unfenced_code_blocks(text)
+
         parts = []
         last_end = 0
 
@@ -325,6 +335,162 @@ class OutputFormatter:
             parts.append({"type": "markdown", "content": after})
 
         return parts
+
+    def _convert_unfenced_code_blocks(self, text: str) -> str:
+        """Convert unfenced code blocks to fenced format.
+
+        Detects patterns where a language name appears alone on a line
+        followed by code (common in kiro-cli output).
+
+        Args:
+            text: Text to process.
+
+        Returns:
+            Text with unfenced code blocks converted to fenced.
+        """
+        lines = text.split('\n')
+        result = []
+        i = 0
+
+        # Known language keywords
+        languages = {
+            'typescript', 'javascript', 'python', 'java', 'go', 'rust',
+            'ruby', 'sql', 'bash', 'shell', 'json', 'yaml', 'html', 'css',
+            'c', 'cpp', 'csharp', 'php', 'swift', 'kotlin', 'scala',
+        }
+
+        def looks_like_code(line: str, lang: str) -> bool:
+            """Check if a line looks like code for the given language."""
+            stripped = line.strip()
+            if not stripped:
+                return False
+
+            # Indented lines are usually code
+            if line.startswith('    ') or line.startswith('\t'):
+                return True
+
+            # Definitely code patterns
+            code_patterns = [
+                r'^(interface|class|function|def|const|let|var|import|export|from|type|enum)\b',
+                r'^(public|private|protected|static|async|await)\b',
+                r'^\s*[{}\[\]()]',
+                r'^[a-zA-Z_]\w*\s*[(={:]',
+                r'^\s*//|^\s*/\*',  # Comments
+                r'=>|->|\|\||&&',
+                r'^\s*@\w+',  # Decorators
+                r'^\s*self\.',  # Python self
+                r'^\s*return\b',
+                r'^\s*(if|for|while|try|except|with)\b.*:',
+            ]
+
+            for pattern in code_patterns:
+                if re.search(pattern, line):
+                    return True
+
+            return False
+
+        def looks_like_prose(line: str) -> bool:
+            """Check if a line looks like prose/markdown."""
+            stripped = line.strip()
+            if not stripped:
+                return True  # Empty lines end code blocks
+
+            # Code patterns that should NOT be treated as prose
+            # even if they end with a colon (Python class/def/if/etc.)
+            code_intro_patterns = [
+                r'^(class|def|if|elif|else|for|while|with|try|except|finally|async|match|case)\b',
+                r'^(interface|type|enum|function|const|let|var|export|import)\b',
+                r'^(public|private|protected|static)\b',
+                r'^\s*@\w+',  # Decorators
+            ]
+            for pattern in code_intro_patterns:
+                if re.search(pattern, stripped, re.IGNORECASE):
+                    return False
+
+            # Prose patterns
+            prose_patterns = [
+                r'^(And|Or|But|If|The|This|That|Here|Now|Also|Want|Why|How|What)\s',
+                r'^[A-Z][a-z]+\s+[a-z]+\s+[a-z]+',  # "Common additions depending"
+                r'^\*\s',  # Markdown list
+                r'^-\s+[A-Z]',  # Markdown list with capital
+                r'^#+\s',  # Markdown header
+                r':\s*$',  # Ends with colon (intro to something)
+            ]
+
+            for pattern in prose_patterns:
+                if re.search(pattern, stripped):
+                    return True
+
+            return False
+
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip().lower()
+
+            # Check if this line is just a language name
+            if stripped in languages and i + 1 < len(lines):
+                # Look ahead to see if next lines look like code
+                code_lines = []
+                j = i + 1
+
+                while j < len(lines):
+                    next_line = lines[j]
+                    next_stripped = next_line.strip()
+
+                    # Handle empty lines - look ahead to see if more code follows
+                    if not next_stripped:
+                        # Check if there's more code after this empty line
+                        lookahead = j + 1
+                        found_more_code = False
+                        while lookahead < len(lines) and lookahead < j + 3:
+                            ahead_line = lines[lookahead]
+                            if ahead_line.strip():
+                                if looks_like_code(ahead_line, stripped) or ahead_line.startswith('    ') or ahead_line.startswith('\t'):
+                                    found_more_code = True
+                                break
+                            lookahead += 1
+
+                        if found_more_code:
+                            code_lines.append(next_line)
+                            j += 1
+                            continue
+                        else:
+                            break  # Empty line followed by prose or nothing
+
+                    # Stop at prose-like lines (but not empty ones - handled above)
+                    if looks_like_prose(next_line):
+                        break
+
+                    # Accept code-like lines or continuation
+                    if (looks_like_code(next_line, stripped) or
+                        next_line.startswith('  ') or
+                        next_line.startswith('\t') or
+                        re.match(r'^\s*[}\])]', next_line)):
+                        code_lines.append(next_line)
+                        j += 1
+                    else:
+                        # Check if it's a closing brace
+                        if next_stripped in ['}', ']', ')']:
+                            code_lines.append(next_line)
+                            j += 1
+                        break
+
+                # Remove trailing empty lines from code
+                while code_lines and not code_lines[-1].strip():
+                    code_lines.pop()
+
+                if code_lines:
+                    # Found code block - convert to fenced
+                    result.append(f'```{stripped}')
+                    result.extend(code_lines)
+                    result.append('```')
+                    i = j
+                    continue
+
+            result.append(line)
+            i += 1
+
+        return '\n'.join(result)
 
     def _extract_file_path(self, line: str, language: str) -> str | None:
         """Extract file path from the first line of a code block.

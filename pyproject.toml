@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kira"
-version = "0.1.0"
+version = "0.0.12-alpha"
 description = "Agentic CLI powered by kiro-cli with persistent memory and skills"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [
-    { name = "Marat", email = "marat@example.com" }
+    { name = "MaratO", email = "moganes@gmail.com" }
 ]
 dependencies = [
     "typer>=0.12",
