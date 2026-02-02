@@ -357,6 +357,8 @@ class OutputFormatter:
             'typescript', 'javascript', 'python', 'java', 'go', 'rust',
             'ruby', 'sql', 'bash', 'shell', 'json', 'yaml', 'html', 'css',
             'c', 'cpp', 'csharp', 'php', 'swift', 'kotlin', 'scala',
+            'mermaid', 'markdown', 'md', 'xml', 'toml', 'ini', 'dockerfile',
+            'makefile', 'cmake', 'gradle', 'graphql', 'proto', 'protobuf',
         }
 
         def looks_like_code(line: str, lang: str) -> bool:
@@ -392,6 +394,35 @@ class OutputFormatter:
                 r'^\s*(while|for|if|until)\s+.*;\s*do',  # Shell loops: while true; do
                 r'^\s*(if|elif)\s+\[',  # Shell conditionals: if [ ... ]
                 r'sleep\s+\d',  # sleep command
+                # Mermaid patterns
+                r'^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey)\b',
+                r'^\s*[A-Z]\[',  # Mermaid node: A[text]
+                r'^\s*[A-Z]\s*-->',  # Mermaid arrow: A --> B
+                r'^\s*participant\b',  # Mermaid sequence diagram
+                # SQL patterns
+                r'^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|FROM|WHERE|JOIN|LEFT|RIGHT|INNER|OUTER|GROUP|ORDER|HAVING|LIMIT|OFFSET|UNION|SET|VALUES)\b',
+                # GraphQL patterns
+                r'^\s*(query|mutation|subscription|type|input|enum|interface|fragment)\b',
+                # Go patterns
+                r'^package\s+\w+',
+                r'^import\s+[(""]',
+                r'^func\s+\w*\s*\(',
+                r'^(var|const)\s+\w+',
+                r'^\s*defer\s+',
+                # Rust patterns
+                r'^(fn|let|mut|pub|mod|use|impl|struct|trait|enum|match)\s+',
+                r'^\s*println!\s*\(',
+                r'^#\[',  # Rust attributes
+                # YAML patterns (key: value at start, or just key:)
+                r'^[a-zA-Z_][a-zA-Z0-9_-]*:\s*$',  # key: (alone on line)
+                r'^[a-zA-Z_][a-zA-Z0-9_-]*:\s*\S',  # key: value
+                r'^\s+-\s+\w',  # YAML list items
+                r'^\s+[a-zA-Z_][a-zA-Z0-9_-]*:',  # Indented key:
+                # Dockerfile patterns
+                r'^(FROM|RUN|CMD|COPY|ADD|WORKDIR|ENV|EXPOSE|ENTRYPOINT|ARG|LABEL|USER|VOLUME)\s+',
+                # Makefile patterns
+                r'^[a-zA-Z_][a-zA-Z0-9_]*\s*:(?!=)',  # target: (not :=)
+                r'^\t+\w',  # Tab-indented commands
             ]
 
             for pattern in code_patterns:
@@ -430,7 +461,7 @@ class OutputFormatter:
                 r'^\*\s',  # Markdown list
                 r'^-\s+[A-Z]',  # Markdown list with capital
                 r'^#+\s',  # Markdown header
-                r':\s*$',  # Ends with colon (intro to something)
+                r'^.{15,}:\s*$',  # Ends with colon but has significant text (prose intro)
             ]
 
             for pattern in prose_patterns:
