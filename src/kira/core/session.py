@@ -11,6 +11,8 @@ from datetime import datetime
 from pathlib import Path
 
 from ..context import ContextManager
+from ..memory.extractor import MemoryExtractor
+from ..memory.models import MemorySource, MemoryType
 from ..memory.store import MemoryStore
 from ..skills.manager import SkillManager
 from .personality import Personality, get_personality
@@ -29,6 +31,10 @@ class Session:
     skill_prompts: dict[str, str] = field(default_factory=dict)
     personality: Personality | None = None
     inject_personality: bool = True
+    # Conversation tracking for better memory
+    turn_count: int = 0
+    conversation_topics: list[str] = field(default_factory=list)
+    key_points: list[str] = field(default_factory=list)
 
 
 # Pattern for memory extraction from agent responses
@@ -173,17 +179,23 @@ class SessionManager:
     def save_memories(
         self,
         response: str,
+        prompt: str = "",
         default_importance: int = 7,
         default_tags: list[str] | None = None,
+        auto_extract: bool = True,
     ) -> int:
-        """Save any memories found in the response.
+        """Save memories from the response.
+
+        Uses both explicit markers and auto-extraction.
 
         Returns the number of memories saved.
         """
-        memories = self.extract_memories(response)
         saved = 0
 
-        for key, content in memories:
+        # 1. Extract explicit [REMEMBER:key] markers
+        explicit_memories = self.extract_memories(response)
+
+        for key, content in explicit_memories:
             # Parse importance from key if provided (e.g., "project:config:8")
             parts = key.rsplit(":", 1)
             importance = default_importance
@@ -198,10 +210,78 @@ class SessionManager:
                 if category not in tags:
                     tags.append(category)
 
-            self.memory.store(key, content, tags=tags, importance=importance)
+            self.memory.store(
+                key, content, tags=tags, importance=importance,
+                source=MemorySource.EXTRACTED,
+            )
             saved += 1
 
+        # 2. Auto-extract using pattern matching
+        if auto_extract:
+            extractor = MemoryExtractor(min_confidence=0.7)
+            result = extractor.extract(response, task=prompt)
+
+            for extracted in result.extracted:
+                # Don't duplicate explicit memories
+                if any(extracted.content in content for _, content in explicit_memories):
+                    continue
+
+                self.memory.store(
+                    extracted.suggested_key,
+                    extracted.content,
+                    tags=extracted.suggested_tags,
+                    importance=extracted.suggested_importance,
+                    memory_type=extracted.memory_type,
+                    source=MemorySource.AUTO,
+                )
+                saved += 1
+
+        # 3. Track conversation turn
+        if self._current:
+            self._current.turn_count += 1
+
         return saved
+
+    def refresh_memory_context(
+        self,
+        query: str = "",
+        max_tokens: int = 2000,
+        min_importance: int = 3,
+    ) -> str:
+        """Refresh memory context based on current conversation.
+
+        Call this to get updated memories relevant to the current topic.
+        """
+        if not self._current:
+            return ""
+
+        # If we have a query, search for relevant memories
+        if query:
+            memories = self.memory.search(query, limit=10)
+            if memories:
+                context_parts = [m.to_context() for m in memories]
+                return "## Relevant Memory\n\n" + "\n".join(context_parts)
+
+        # Otherwise return general context
+        return self.memory.get_context(
+            max_tokens=max_tokens,
+            min_importance=min_importance,
+        )
+
+    def save_conversation_summary(self, summary: str) -> None:
+        """Save a summary of the conversation as episodic memory."""
+        if not self._current:
+            return
+
+        key = f"session:{self._current.id}"
+        self.memory.store(
+            key=key,
+            content=summary,
+            tags=["session", "conversation"],
+            importance=6,
+            memory_type=MemoryType.EPISODIC,
+            source=MemorySource.AUTO,
+        )
 
     def add_memory(
         self,

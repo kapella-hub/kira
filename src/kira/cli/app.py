@@ -378,11 +378,11 @@ async def _run_one_shot(
     log_store.update_entry_response(entry_id, full_output, duration)
     log_store.end_run(run_id)
 
-    # Extract and save memories
+    # Extract and save memories (explicit + auto-extraction)
     if not no_memory and config.memory.auto_extract:
-        saved = session_manager.save_memories(full_output)
+        saved = session_manager.save_memories(full_output, prompt=prompt, auto_extract=True)
         if saved > 0 and verbose:
-            print_success(f"Saved {saved} memory entries")
+            print_success(f"Learned {saved} things")
 
 
 async def _run_thinking(
@@ -508,11 +508,11 @@ async def _run_thinking(
 
     console.print()  # Final newline
 
-    # Extract and save memories
+    # Extract and save memories (explicit + auto-extraction)
     if not no_memory and config.memory.auto_extract:
-        saved = session_manager.save_memories(full_output)
+        saved = session_manager.save_memories(full_output, prompt=prompt, auto_extract=True)
         if saved > 0 and verbose:
-            print_success(f"Saved {saved} memory entries")
+            print_success(f"Learned {saved} things")
 
 
 async def _run_autonomous(

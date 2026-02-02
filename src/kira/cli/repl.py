@@ -60,7 +60,7 @@ PROMPT_STYLE = Style.from_dict({
 COMMANDS = [
     "/help", "/exit", "/quit", "/clear",
     "/model", "/config", "/skill", "/skills",
-    "/memory", "/thinking", "/autonomous", "/personality",
+    "/memory", "/learned", "/thinking", "/autonomous", "/personality",
     "/verbose", "/trust", "/timeout",
     "/status", "/compact", "/history",
     "/context", "/logs", "/cd", "/view",
@@ -333,6 +333,7 @@ class InteractiveREPL:
             ("/memory", "Show memory stats"),
             ("/memory stats", "Detailed stats by type/source"),
             ("/memory decay", "Show decay report"),
+            ("/learned", "Show recently auto-learned memories"),
             ("/memory on|off", "Toggle memory"),
         ]
 
@@ -442,6 +443,9 @@ class InteractiveREPL:
 
         elif command == "/memory":
             self._handle_memory(args)
+
+        elif command == "/learned":
+            self._show_learned()
 
         elif command == "/status":
             self._show_status()
@@ -637,8 +641,33 @@ class InteractiveREPL:
                         self.console.print(f"[{COLORS['muted']}]By importance:[/] {', '.join(imp_parts[:5])}")
 
         self.console.print()
-        self.console.print(f"[{COLORS['muted']}]Commands: /memory on|off|stats|decay[/]")
+        self.console.print(f"[{COLORS['muted']}]Commands: /memory on|off|stats|decay | /learned[/]")
         self.console.print(f"[{COLORS['muted']}]CLI: kira memory list, kira memory cleanup --dry-run[/]")
+
+    def _show_learned(self) -> None:
+        """Show recently auto-learned memories."""
+        from ..memory.models import MemorySource
+
+        store = MemoryStore()
+        # Get auto-extracted memories
+        memories = store.list_all(source=MemorySource.AUTO, limit=10)
+
+        if not memories:
+            self.console.print(f"[{COLORS['muted']}]No auto-learned memories yet[/]")
+            self.console.print(f"[{COLORS['muted']}]Kira learns from your conversations automatically[/]")
+            return
+
+        self.console.print(f"[{COLORS['primary']}]Recently Learned[/]\n")
+
+        for mem in memories:
+            # Truncate content for display
+            content = mem.content[:80] + "..." if len(mem.content) > 80 else mem.content
+            type_icon = {"semantic": "💡", "episodic": "📝", "procedural": "⚙️"}.get(mem.memory_type.value, "•")
+            self.console.print(f"  {type_icon} [{COLORS['muted']}]{mem.key}[/]")
+            self.console.print(f"     {content}")
+            self.console.print()
+
+        self.console.print(f"[{COLORS['muted']}]Total auto-learned: {len(memories)} | CLI: kira memory list[/]")
 
     def _show_memory_decay(self) -> None:
         """Show memory decay report."""
@@ -1460,11 +1489,15 @@ class InteractiveREPL:
         if entry_id:
             self.log_store.update_entry_response(entry_id, full_output, duration)
 
-        # Extract memories
+        # Extract memories (explicit markers + auto-extraction)
         if not self.no_memory and self.config.memory.auto_extract:
-            saved = session_manager.save_memories(full_output)
+            saved = session_manager.save_memories(
+                full_output,
+                prompt=prompt,  # Pass prompt for context-aware extraction
+                auto_extract=True,
+            )
             if saved > 0 and self.verbose:
-                self.console.print(f"[{COLORS['muted']}]Saved {saved} memory entries[/]")
+                self.console.print(f"[{COLORS['muted']}]Learned {saved} things[/]")
 
     def _get_working_dir(self) -> Path:
         """Get the working directory, falling back to default if needed."""
