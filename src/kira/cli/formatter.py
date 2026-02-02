@@ -6,11 +6,10 @@ import re
 from typing import TYPE_CHECKING
 
 from rich.box import ROUNDED
-from rich.console import Console, Group
+from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.syntax import Syntax
-from rich.text import Text
 
 if TYPE_CHECKING:
     pass
@@ -28,29 +27,33 @@ LANGUAGE_ALIASES = {
     "dockerfile": "docker",
 }
 
-# Comment patterns for different languages to extract file paths
-COMMENT_PATTERNS = {
-    # // path/to/file.ext
-    "slash": re.compile(r"^//\s*(.+?\.\w+)\s*$"),
-    # # path/to/file.ext
-    "hash": re.compile(r"^#\s*(.+?\.\w+)\s*$"),
-    # -- path/to/file.ext
-    "dash": re.compile(r"^--\s*(.+?\.\w+)\s*$"),
-    # /* path/to/file.ext */
-    "block": re.compile(r"^/\*\s*(.+?\.\w+)\s*\*/\s*$"),
-    # <!-- path/to/file.ext -->
-    "html": re.compile(r"^<!--\s*(.+?\.\w+)\s*-->?\s*$"),
-}
+# Patterns that indicate kiro-cli tool output (not response content)
+TOOL_OUTPUT_PATTERNS = [
+    # Tool invocation: "something (using tool: toolname)"
+    re.compile(r"\(using tool: \w+\)"),
+    # Status indicators at start of line
+    re.compile(r"^[\s]*[↱✓⋮]"),
+    # Completed timing: " - Completed in X.XXs"
+    re.compile(r"^\s*-\s*Completed in"),
+    # Summary line
+    re.compile(r"^\s*-\s*Summary:"),
+    # Metadata in brackets at start: "[Overview]", "[Error]", etc.
+    re.compile(r"^\s*\[\w+\]"),
+    # Batch operations
+    re.compile(r"^Batch \w+ operation"),
+    # Operation status lines
+    re.compile(r"^\s*Operation \d+:"),
+    # Reading/Writing file status
+    re.compile(r"^\s*(Reading|Writing|Searching|Executing)"),
+]
 
 
 class OutputFormatter:
     """Formats markdown output with enhanced code block rendering.
 
-    Features:
-    - Syntax highlighting for code blocks
-    - Line numbers
-    - File path detection and display as headers
-    - Proper markdown rendering for non-code content
+    Handles kiro-cli output which contains:
+    1. Tool execution status (passed through as-is)
+    2. Response content (formatted with markdown/syntax highlighting)
     """
 
     # Pattern to match fenced code blocks
@@ -70,14 +73,87 @@ class OutputFormatter:
         self.theme = theme
 
     def format(self, text: str) -> None:
-        """Parse and render markdown with enhanced code blocks.
+        """Parse and render output with proper formatting.
+
+        Separates tool output (passed through) from response content (formatted).
 
         Args:
-            text: Markdown text to render.
+            text: Raw output text from kiro-cli.
         """
         if not text or not text.strip():
             return
 
+        # Split into tool output and response content
+        tool_output, response_content = self._split_tool_and_response(text)
+
+        # Print tool output as-is (already formatted by kiro-cli)
+        if tool_output.strip():
+            self.console.print(tool_output, highlight=False)
+
+        # Format and print response content
+        if response_content.strip():
+            self._format_response(response_content)
+
+    def _split_tool_and_response(self, text: str) -> tuple[str, str]:
+        """Split text into tool output and response content.
+
+        Tool output includes status lines from kiro-cli tools.
+        Response content is the actual markdown response.
+
+        Args:
+            text: Raw output text.
+
+        Returns:
+            Tuple of (tool_output, response_content).
+        """
+        lines = text.split("\n")
+        tool_lines = []
+        response_lines = []
+        in_response = False
+
+        for line in lines:
+            if in_response:
+                response_lines.append(line)
+            elif self._is_tool_output(line):
+                tool_lines.append(line)
+            else:
+                # Check if this looks like the start of real content
+                stripped = line.strip()
+                if stripped and not self._is_tool_output(line):
+                    # Start of response content
+                    in_response = True
+                    response_lines.append(line)
+                else:
+                    tool_lines.append(line)
+
+        return "\n".join(tool_lines), "\n".join(response_lines)
+
+    def _is_tool_output(self, line: str) -> bool:
+        """Check if a line is tool execution output.
+
+        Args:
+            line: Line to check.
+
+        Returns:
+            True if line is tool output, False otherwise.
+        """
+        # Empty or whitespace-only lines in tool section
+        if not line.strip():
+            return True
+
+        # Check against tool output patterns
+        for pattern in TOOL_OUTPUT_PATTERNS:
+            if pattern.search(line):
+                return True
+
+        return False
+
+    def _format_response(self, text: str) -> None:
+        """Format response content with markdown and code blocks.
+
+        Args:
+            text: Response content to format.
+        """
         # Split text into code blocks and other content
         parts = self._split_content(text)
 
@@ -158,8 +234,21 @@ class OutputFormatter:
         if not line:
             return None
 
-        # Try each comment pattern
-        for pattern in COMMENT_PATTERNS.values():
+        # Comment patterns for different languages
+        comment_patterns = [
+            # // path/to/file.ext
+            re.compile(r"^//\s*(.+?\.\w+)\s*$"),
+            # # path/to/file.ext
+            re.compile(r"^#\s*([a-zA-Z0-9_./\\-]+\.\w+)\s*$"),
+            # -- path/to/file.ext
+            re.compile(r"^--\s*(.+?\.\w+)\s*$"),
+            # /* path/to/file.ext */
+            re.compile(r"^/\*\s*(.+?\.\w+)\s*\*/\s*$"),
+            # <!-- path/to/file.html -->
+            re.compile(r"^<!--\s*(.+?\.\w+)\s*-->?\s*$"),
+        ]
+
+        for pattern in comment_patterns:
             match = pattern.match(line)
             if match:
                 path = match.group(1).strip()
@@ -250,7 +339,7 @@ def format_output(text: str, console: Console | None = None) -> None:
     """Convenience function to format and print markdown output.
 
     Args:
-        text: Markdown text to render.
+        text: Raw output text from kiro-cli.
         console: Optional Rich console instance.
     """
     formatter = OutputFormatter(console)
