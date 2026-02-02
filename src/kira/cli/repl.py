@@ -1416,7 +1416,9 @@ class InteractiveREPL:
             with Live(spinner, console=self.console, refresh_per_second=10, transient=True) as live:
                 async for chunk in client.run(full_prompt, agent=self.agent, resume=self.resume):
                     collected.append(chunk)
-                    self.resume = False
+            # After first successful message, enable resume for subsequent messages
+            # so kiro-cli maintains conversation context
+            self.resume = True
 
         except KeyboardInterrupt:
             self.console.print()
@@ -1436,12 +1438,10 @@ class InteractiveREPL:
         # Get full output
         full_output = "".join(collected)
 
-        # Debug: dump raw output if KIRA_DEBUG is set
-        import os
-        if os.environ.get("KIRA_DEBUG"):
-            self.console.print(f"\n[yellow]--- RAW OUTPUT ({len(full_output)} chars) ---[/]")
-            self.console.print(repr(full_output[:500]))
-            self.console.print(f"[yellow]--- END RAW ---[/]\n")
+        # Debug mode: dump raw output
+        if self.verbose and os.environ.get("KIRA_DEBUG"):
+            self.console.print(f"\n[dim]--- RAW ({len(full_output)} chars) ---[/]")
+            self.console.print(f"[dim]{repr(full_output[:300])}...[/]")
 
         # Render formatted output
         if full_output.strip():
