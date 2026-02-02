@@ -24,7 +24,11 @@ Usage:
     result = await agent.run("implement user authentication")
 """
 
-__version__ = "0.1.0"
+try:
+    from importlib.metadata import version as _get_version
+    __version__ = _get_version("kira")
+except Exception:
+    __version__ = "0.0.0-dev"
 
 # Core exports (lazy imports for faster startup)
 def __getattr__(name: str):

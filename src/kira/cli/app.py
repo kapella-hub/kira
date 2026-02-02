@@ -808,7 +808,16 @@ def update():
 
     if result.returncode == 0:
         console.print("[green]✓[/green] Updated successfully")
-        console.print("[dim]Restart your shell to use the new version[/dim]")
+        # Show new version by checking installed package metadata
+        try:
+            from importlib.metadata import version as get_version
+            new_version = get_version("kira")
+            if new_version != __version__:
+                console.print(f"[green]New version: {new_version}[/green]")
+            else:
+                console.print("[dim]Already at latest version[/dim]")
+        except Exception:
+            console.print("[dim]Restart your shell to use the new version[/dim]")
     else:
         console.print(f"[red]✗[/red] Update failed")
         if result.stderr:
