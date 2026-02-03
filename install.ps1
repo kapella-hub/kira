@@ -1,9 +1,14 @@
 # Kira Installer for Windows
 # Usage: irm https://raw.githubusercontent.com/kapella-hub/kira/main/install.ps1 | iex
+#
+# Options (set before running):
+#   $env:KIRA_VERSION = "v0.2.0"  # Install specific version
+#   $env:KIRA_NO_MODIFY_PATH = "1"  # Don't modify PATH
 
 $ErrorActionPreference = "Stop"
 
 $REPO = "https://github.com/kapella-hub/kira.git"
+$VERSION = $env:KIRA_VERSION
 $MIN_PYTHON_MAJOR = 3
 $MIN_PYTHON_MINOR = 12
 
@@ -108,12 +113,22 @@ function Test-Kiro {
 function Install-Kira {
     Write-Info "Installing kira..."
 
+    # Build install URL with optional version
+    if ($VERSION) {
+        $installUrl = "git+${REPO}@${VERSION}"
+        Write-Info "Installing version: $VERSION"
+    } else {
+        $installUrl = "git+$REPO"
+    }
+
     # Install with pip --user
-    $output = & $script:PythonCmd -m pip install --user --upgrade "git+$REPO" 2>&1
+    $output = & $script:PythonCmd -m pip install --user --upgrade $installUrl 2>&1
 
     if ($LASTEXITCODE -ne 0) {
         Write-Err "Installation failed"
         Write-Host $output
+        Write-Host ""
+        Write-Host "Try running manually: $script:PythonCmd -m pip install --user git+$REPO"
         exit 1
     }
 

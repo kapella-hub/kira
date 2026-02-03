@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 from rich.console import Console
 from rich.panel import Panel
 
-from .config import Config
 from .client import KiraClient
+from .config import Config
 from .verifier import Verifier
 
 if TYPE_CHECKING:
@@ -109,6 +109,7 @@ class KiraAgent:
         """Get or create the deep reasoning component."""
         if self._reasoning is None:
             from ..thinking.reasoning import DeepReasoning
+
             self._reasoning = DeepReasoning(
                 client=self.client,
                 console=self.console,
@@ -120,6 +121,7 @@ class KiraAgent:
         """Get or create the self-correction component."""
         if self._corrector is None:
             from ..correction.loop import SelfCorrector
+
             self._corrector = SelfCorrector(
                 client=self.client,
                 max_retries=self.config.autonomous.max_retries,
@@ -143,6 +145,7 @@ class KiraAgent:
         """Get or create the execution memory component."""
         if self._memory is None:
             from ..memory.execution import ExecutionMemory
+
             self._memory = ExecutionMemory()
         return self._memory
 
@@ -169,7 +172,9 @@ class KiraAgent:
         start_time = time.time()
 
         # Apply overrides
-        use_reasoning = deep_reasoning if deep_reasoning is not None else self.config.autonomous.deep_reasoning
+        use_reasoning = (
+            deep_reasoning if deep_reasoning is not None else self.config.autonomous.deep_reasoning
+        )
         retries = max_retries if max_retries is not None else self.config.autonomous.max_retries
         use_verify = verify if verify is not None else self.config.autonomous.verification_enabled
         use_learn = learn if learn is not None else self.config.autonomous.learning_enabled
@@ -210,6 +215,7 @@ class KiraAgent:
         if plan:
             # Execute with plan
             from ..correction.loop import SelfCorrector
+
             corrector = SelfCorrector(
                 client=self.client,
                 max_retries=retries,
@@ -368,17 +374,21 @@ class KiraAgent:
         ]
 
         if history:
-            parts.extend([
-                "",
-                "RELEVANT PAST EXPERIENCE:",
-            ])
+            parts.extend(
+                [
+                    "",
+                    "RELEVANT PAST EXPERIENCE:",
+                ]
+            )
             for record in history[:2]:
                 parts.append(record.to_context())
 
-        parts.extend([
-            "",
-            "Execute the plan step by step. Show your work clearly.",
-        ])
+        parts.extend(
+            [
+                "",
+                "Execute the plan step by step. Show your work clearly.",
+            ]
+        )
 
         return "\n".join(parts)
 

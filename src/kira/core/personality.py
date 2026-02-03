@@ -23,15 +23,17 @@ class Personality:
     """Agent personality configuration."""
 
     name: str = "Kira"
-    traits: list[Trait] = field(default_factory=lambda: [
-        Trait.WITTY,
-        Trait.PROFESSIONAL,
-        Trait.OPTIMISTIC,
-        Trait.PROACTIVE,
-        Trait.RESOURCEFUL,
-        Trait.CREATIVE,
-        Trait.HELPFUL,
-    ])
+    traits: list[Trait] = field(
+        default_factory=lambda: [
+            Trait.WITTY,
+            Trait.PROFESSIONAL,
+            Trait.OPTIMISTIC,
+            Trait.PROACTIVE,
+            Trait.RESOURCEFUL,
+            Trait.CREATIVE,
+            Trait.HELPFUL,
+        ]
+    )
     custom_instructions: str = ""
 
     def get_system_prompt(self) -> str:
@@ -135,10 +137,11 @@ Remember: You're not just a tool, you're a collaborator. Bring your personality 
         greetings = [
             f"Hey! {self.name} here, ready to build something great.",
             f"{self.name} at your service. What are we creating today?",
-            f"Let's do this! What's on the agenda?",
+            "Let's do this! What's on the agenda?",
             f"{self.name} here. I've got ideas and I'm not afraid to use them.",
         ]
         import random
+
         return random.choice(greetings)
 
     def format_success(self, task_summary: str) -> str:
@@ -150,6 +153,7 @@ Remember: You're not just a tool, you're a collaborator. Bring your personality 
             f"Boom! {task_summary}",
         ]
         import random
+
         return random.choice(celebrations)
 
     def format_error(self, error: str) -> str:
@@ -165,6 +169,7 @@ Remember: You're not just a tool, you're a collaborator. Bring your personality 
             "Worth considering:",
         ]
         import random
+
         return f"{random.choice(intros)} {suggestion}"
 
 

@@ -6,7 +6,6 @@ which can be committed to the repo for team sharing.
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -14,7 +13,6 @@ from typing import Any
 import yaml
 
 from .models import Memory, MemorySource, MemoryType
-
 
 # Default project memory file
 PROJECT_MEMORY_FILE = ".kira/project-memory.yaml"
@@ -163,10 +161,7 @@ class ProjectMemoryStore:
         memories = list(self.load().values())
 
         if tags:
-            memories = [
-                m for m in memories
-                if any(t in m.tags for t in tags)
-            ]
+            memories = [m for m in memories if any(t in m.tags for t in tags)]
 
         return sorted(memories, key=lambda m: -m.importance)
 
@@ -193,10 +188,7 @@ class ProjectMemoryStore:
 
     def get_context(self, max_tokens: int = 1500, min_importance: int = 3) -> str:
         """Get context string for prompt injection."""
-        memories = [
-            m for m in self.load().values()
-            if m.importance >= min_importance
-        ]
+        memories = [m for m in self.load().values() if m.importance >= min_importance]
 
         # Sort by importance
         memories.sort(key=lambda m: -m.importance)

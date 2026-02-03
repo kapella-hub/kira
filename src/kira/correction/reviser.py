@@ -56,7 +56,9 @@ class PlanReviser:
         elif strategy == CorrectionStrategy.MODIFY_APPROACH:
             # Modify based on suggested fixes
             if analysis.suggested_fixes:
-                revised_details = f"{step.details}\n\nIMPORTANT: {analysis.root_cause}\nApply fixes:\n"
+                revised_details = (
+                    f"{step.details}\n\nIMPORTANT: {analysis.root_cause}\nApply fixes:\n"
+                )
                 for fix in analysis.suggested_fixes:
                     revised_details += f"- {fix}\n"
                 changes.append("Added specific fixes to apply")
@@ -190,9 +192,7 @@ List of specific changes made.
                     verification=f"Verify fix for: {analysis.root_cause}",
                 )
                 new_steps.append(new_step)
-                refinements.append(
-                    f"Revised step {step.number}: {revision.revision_reasoning}"
-                )
+                refinements.append(f"Revised step {step.number}: {revision.revision_reasoning}")
             else:
                 # Steps after failure - may need adjustment
                 new_steps.append(step)
@@ -217,9 +217,7 @@ List of specific changes made.
         reasoning_match = re.search(r"\[REASONING:([^\]]+)\]", raw_output)
         changes_match = re.search(r"\[CHANGES:([^\]]+)\]", raw_output)
 
-        revised_action = (
-            action_match.group(1).strip() if action_match else step.action
-        )
+        revised_action = action_match.group(1).strip() if action_match else step.action
         reasoning = (
             reasoning_match.group(1).strip()
             if reasoning_match

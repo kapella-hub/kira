@@ -258,9 +258,7 @@ class Verifier:
             if module.startswith(".") or module in sys.builtin_module_names:
                 continue
             # Skip local imports (assume they exist)
-            if (self.working_dir / module).exists() or (
-                self.working_dir / f"{module}.py"
-            ).exists():
+            if (self.working_dir / module).exists() or (self.working_dir / f"{module}.py").exists():
                 continue
 
             # Try to import
@@ -418,7 +416,7 @@ TASK: {task}
 EXECUTION OUTPUT:
 {output[:2000]}
 
-FILES MODIFIED: {', '.join(files) if files else 'None specified'}
+FILES MODIFIED: {", ".join(files) if files else "None specified"}
 
 Respond with:
 [COMPLETED:yes/no/partial]

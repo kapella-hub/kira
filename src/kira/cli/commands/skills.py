@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 
@@ -21,7 +21,7 @@ def get_manager() -> SkillManager:
 @app.command("list")
 def list_skills(
     tags: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         typer.Option("--tags", "-t", help="Filter by tags"),
     ] = None,
 ):
@@ -60,19 +60,19 @@ def show_skill(
 def add_skill(
     name: Annotated[str, typer.Argument(help="Skill name")],
     description: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--description", "-d", help="Skill description"),
     ] = None,
     prompt: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--prompt", "-p", help="Skill prompt text"),
     ] = None,
     from_file: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--from", "-f", help="Import from YAML file"),
     ] = None,
     tags: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         typer.Option("--tags", "-t", help="Tags for this skill"),
     ] = None,
     local: Annotated[
@@ -90,6 +90,7 @@ def add_skill(
             raise typer.Exit(1)
 
         from ...skills.manager import Skill
+
         try:
             skill = Skill.from_yaml(from_file)
             # Override name if provided
@@ -116,6 +117,7 @@ def add_skill(
         # Read prompt from stdin or editor
         console.print("Enter skill prompt (Ctrl+D when done):")
         import sys
+
         prompt = sys.stdin.read().strip()
 
     if not prompt:

@@ -10,18 +10,18 @@ from enum import Enum
 class MemoryType(Enum):
     """Types of memories for categorization and retrieval."""
 
-    SEMANTIC = "semantic"      # Facts, definitions, concepts
-    EPISODIC = "episodic"      # Conversations, events, decisions
+    SEMANTIC = "semantic"  # Facts, definitions, concepts
+    EPISODIC = "episodic"  # Conversations, events, decisions
     PROCEDURAL = "procedural"  # How-to, patterns, approaches
 
 
 class MemorySource(Enum):
     """Source of memory creation."""
 
-    USER = "user"              # Manually added by user
-    EXTRACTED = "extracted"    # Auto-extracted from responses
+    USER = "user"  # Manually added by user
+    EXTRACTED = "extracted"  # Auto-extracted from responses
     CONSOLIDATED = "consolidated"  # Merged from multiple memories
-    MARKER = "marker"          # Explicit [REMEMBER:] marker
+    MARKER = "marker"  # Explicit [REMEMBER:] marker
 
 
 @dataclass
@@ -68,7 +68,7 @@ class Memory:
 
         # 5% decay per week
         decay_rate = 0.95
-        decayed = self.importance * (decay_rate ** weeks)
+        decayed = self.importance * (decay_rate**weeks)
 
         return max(1.0, decayed)
 

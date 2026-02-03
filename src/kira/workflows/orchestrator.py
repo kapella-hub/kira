@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from datetime import datetime
-from typing import TYPE_CHECKING, AsyncIterator
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from .models import Stage, StageResult, StageStatus, Workflow, WorkflowExecution
+from .models import StageResult, StageStatus, Workflow, WorkflowExecution
 
 if TYPE_CHECKING:
     from ..agents.spawner import AgentSpawner
@@ -26,8 +27,8 @@ class WorkflowOrchestrator:
 
     def __init__(
         self,
-        agent_spawner: "AgentSpawner",
-        session_manager: "SessionManager",
+        agent_spawner: AgentSpawner,
+        session_manager: SessionManager,
         console: Console | None = None,
     ):
         self.spawner = agent_spawner
@@ -94,9 +95,7 @@ class WorkflowOrchestrator:
                     StageStatus.COMPLETED,
                     StageStatus.SKIPPED,
                 ):
-                    raise ValueError(
-                        f"Stage {stage.name} requires {dep} to complete first"
-                    )
+                    raise ValueError(f"Stage {stage.name} requires {dep} to complete first")
 
             # Interactive confirmation for optional stages
             if interactive and not stage.required:
@@ -124,9 +123,7 @@ class WorkflowOrchestrator:
             try:
                 stage_prompt = stage.prompt_template.format(**outputs)
             except KeyError as e:
-                raise ValueError(
-                    f"Stage {stage.name} requires output from: {e}"
-                ) from e
+                raise ValueError(f"Stage {stage.name} requires output from: {e}") from e
 
             # Run agent
             collected: list[str] = []
@@ -205,6 +202,7 @@ class WorkflowOrchestrator:
 
         # Render table to string
         from io import StringIO
+
         from rich.console import Console as RichConsole
 
         buffer = StringIO()

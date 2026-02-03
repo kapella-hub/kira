@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
-from rich.text import Text
+from rich.table import Table
 
 # Shared console instance
 console = Console()
@@ -63,10 +62,12 @@ def print_memory_table(
     if show_decay:
         columns.append(("Decayed", "yellow"))
 
-    columns.extend([
-        ("Tags", "green"),
-        ("Updated", "dim"),
-    ])
+    columns.extend(
+        [
+            ("Tags", "green"),
+            ("Updated", "dim"),
+        ]
+    )
 
     table = create_table(title, columns)
 
@@ -113,7 +114,9 @@ def print_skill_table(skills: list, title: str = "Skills") -> None:
             location = "builtin" if "builtin" in str(skill.path) else "user"
             table.add_row(
                 skill.name,
-                skill.description[:50] + "..." if len(skill.description) > 50 else skill.description,
+                skill.description[:50] + "..."
+                if len(skill.description) > 50
+                else skill.description,
                 tags,
                 location,
             )

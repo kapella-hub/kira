@@ -137,7 +137,7 @@ def get_default_config_yaml() -> str:
     Returns:
         YAML string with all default settings and documentation.
     """
-    return '''# Kira-Agent Configuration
+    return """# Kira-Agent Configuration
 # =========================
 #
 # This file contains all configurable settings for kira.
@@ -279,7 +279,7 @@ personality:
 #   auto_spawn: false
 #   use_llm_classification: false
 #   default_agent: general
-'''
+"""
 
 
 def get_minimal_config_yaml() -> str:
@@ -288,7 +288,7 @@ def get_minimal_config_yaml() -> str:
     Returns:
         YAML string with minimal settings.
     """
-    return '''# Kira-Agent Configuration (Minimal)
+    return """# Kira-Agent Configuration (Minimal)
 # Run `kira config init --full` for all options
 
 defaults:
@@ -307,4 +307,4 @@ thinking:
 personality:
   enabled: true
   name: Kira
-'''
+"""

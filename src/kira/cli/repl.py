@@ -15,27 +15,23 @@ from typing import TYPE_CHECKING
 warnings.filterwarnings("ignore", message=".*Event loop is closed.*")
 
 from prompt_toolkit import PromptSession
-from prompt_toolkit.completion import WordCompleter, Completer, Completion
-from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.history import FileHistory
-from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 from rich.box import ROUNDED
 from rich.console import Console, Group
 from rich.live import Live
-from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
-from rich.rule import Rule
 
-from ..context import ContextManager, ProjectAnalyzer, ChangeType
-from ..core.config import Config
+from ..context import ContextManager, ProjectAnalyzer
 from ..core.client import KiraClient, KiraNotFoundError
+from ..core.config import Config
 from ..core.models import get_available_models, get_model_info, resolve_model
 from ..core.session import SessionManager
-from ..core.verifier import Verifier, CheckStatus
+from ..core.verifier import CheckStatus, Verifier
 from ..logs import RunLogStore
 from ..logs.models import RunMode
 from ..memory.store import MemoryStore
@@ -56,22 +52,44 @@ COLORS = {
 }
 
 # REPL prompt style for prompt_toolkit
-PROMPT_STYLE = Style.from_dict({
-    "prompt": "ansicyan bold",
-    "model": "ansiblue",
-    "mode": "ansimagenta",
-    "rprompt": "ansigray",
-})
+PROMPT_STYLE = Style.from_dict(
+    {
+        "prompt": "ansicyan bold",
+        "model": "ansiblue",
+        "mode": "ansimagenta",
+        "rprompt": "ansigray",
+    }
+)
 
 # Available commands for completion
 COMMANDS = [
-    "/help", "/exit", "/quit", "/clear",
-    "/model", "/config", "/skill", "/skills",
-    "/memory", "/learned", "/project", "/thinking", "/autonomous", "/personality",
-    "/verbose", "/trust", "/timeout",
-    "/status", "/compact", "/history",
-    "/context", "/logs", "/cd", "/view",
-    "/commit", "/branch", "/git",
+    "/help",
+    "/exit",
+    "/quit",
+    "/clear",
+    "/model",
+    "/config",
+    "/skill",
+    "/skills",
+    "/memory",
+    "/learned",
+    "/project",
+    "/thinking",
+    "/autonomous",
+    "/personality",
+    "/verbose",
+    "/trust",
+    "/timeout",
+    "/status",
+    "/compact",
+    "/history",
+    "/context",
+    "/logs",
+    "/cd",
+    "/view",
+    "/commit",
+    "/branch",
+    "/git",
 ]
 
 # Context subcommands for completion
@@ -84,9 +102,17 @@ MEMORY_COMMANDS = ["on", "off", "stats", "decay"]
 PROJECT_COMMANDS = ["list", "add", "search"]
 
 CONFIG_KEYS = [
-    "model", "memory", "thinking", "autonomous",
-    "personality", "personality.name", "verbose",
-    "trust", "timeout", "retries", "save",
+    "model",
+    "memory",
+    "thinking",
+    "autonomous",
+    "personality",
+    "personality.name",
+    "verbose",
+    "trust",
+    "timeout",
+    "retries",
+    "save",
 ]
 
 MODEL_ALIASES = ["fast", "smart", "opus", "haiku", "sonnet", "best"]
@@ -247,7 +273,9 @@ class InteractiveREPL:
         welcome_lines.append(f"[bold {COLORS['primary']}]{personality.format_greeting()}[/]")
         welcome_lines.append("")
         welcome_lines.append(f"[{COLORS['muted']}]Working in:[/] [bold]{cwd.name}/[/]")
-        welcome_lines.append(f"[{COLORS['muted']}]Model:[/] [bold {COLORS['secondary']}]{model_name}[/] [{COLORS['muted']}]({tier})[/]")
+        welcome_lines.append(
+            f"[{COLORS['muted']}]Model:[/] [bold {COLORS['secondary']}]{model_name}[/] [{COLORS['muted']}]({tier})[/]"
+        )
 
         # Show active modes
         active_modes = []
@@ -272,7 +300,7 @@ class InteractiveREPL:
             subtitle=f"[{COLORS['muted']}]/help for commands[/]",
             box=ROUNDED,
             padding=(1, 2),
-            border_style=COLORS['primary'],
+            border_style=COLORS["primary"],
         )
 
         self.console.print()
@@ -284,7 +312,7 @@ class InteractiveREPL:
         # Basic commands table
         cmd_table = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
         cmd_table.add_column("Command", style=f"bold {COLORS['primary']}")
-        cmd_table.add_column("Description", style=COLORS['muted'])
+        cmd_table.add_column("Description", style=COLORS["muted"])
 
         commands = [
             ("/help", "Show this help"),
@@ -303,7 +331,7 @@ class InteractiveREPL:
         # Quick settings table
         settings_table = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
         settings_table.add_column("Command", style=f"bold {COLORS['secondary']}")
-        settings_table.add_column("Example", style=COLORS['muted'])
+        settings_table.add_column("Example", style=COLORS["muted"])
 
         settings = [
             ("/model <name>", "fast, smart, opus"),
@@ -321,7 +349,7 @@ class InteractiveREPL:
         # Context table (team collaboration)
         context_table = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
         context_table.add_column("Command", style=f"bold {COLORS['success']}")
-        context_table.add_column("Description", style=COLORS['muted'])
+        context_table.add_column("Description", style=COLORS["muted"])
 
         context_cmds = [
             ("/context", "Show project context"),
@@ -338,7 +366,7 @@ class InteractiveREPL:
         # Memory table
         memory_table = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
         memory_table.add_column("Command", style=f"bold {COLORS['warning']}")
-        memory_table.add_column("Description", style=COLORS['muted'])
+        memory_table.add_column("Description", style=COLORS["muted"])
 
         memory_cmds = [
             ("/memory", "Show memory stats"),
@@ -357,7 +385,7 @@ class InteractiveREPL:
         # Skills table
         skills_table = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
         skills_table.add_column("Command", style=f"bold {COLORS['accent']}")
-        skills_table.add_column("Description", style=COLORS['muted'])
+        skills_table.add_column("Description", style=COLORS["muted"])
 
         skills_cmds = [
             ("/skills", "List available skills"),
@@ -370,7 +398,7 @@ class InteractiveREPL:
         # Logs table
         logs_table = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
         logs_table.add_column("Command", style=f"bold {COLORS['muted']}")
-        logs_table.add_column("Description", style=COLORS['muted'])
+        logs_table.add_column("Description", style=COLORS["muted"])
 
         logs_cmds = [
             ("/logs", "Show recent runs"),
@@ -384,7 +412,7 @@ class InteractiveREPL:
         # Git table
         git_table = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
         git_table.add_column("Command", style=f"bold {COLORS['accent']}")
-        git_table.add_column("Description", style=COLORS['muted'])
+        git_table.add_column("Description", style=COLORS["muted"])
 
         git_cmds = [
             ("/git", "Show git status"),
@@ -399,13 +427,13 @@ class InteractiveREPL:
         # Shortcuts
         shortcuts = Text()
         shortcuts.append("Tab", style=f"bold {COLORS['primary']}")
-        shortcuts.append(" autocomplete  ", style=COLORS['muted'])
+        shortcuts.append(" autocomplete  ", style=COLORS["muted"])
         shortcuts.append("Up/Down", style=f"bold {COLORS['primary']}")
-        shortcuts.append(" history  ", style=COLORS['muted'])
+        shortcuts.append(" history  ", style=COLORS["muted"])
         shortcuts.append("Ctrl+C", style=f"bold {COLORS['primary']}")
-        shortcuts.append(" cancel  ", style=COLORS['muted'])
+        shortcuts.append(" cancel  ", style=COLORS["muted"])
         shortcuts.append("Ctrl+D", style=f"bold {COLORS['primary']}")
-        shortcuts.append(" exit", style=COLORS['muted'])
+        shortcuts.append(" exit", style=COLORS["muted"])
 
         # Combine into panel
         content = Group(
@@ -436,10 +464,10 @@ class InteractiveREPL:
 
         panel = Panel(
             content,
-            title=f"[bold]Help[/]",
+            title="[bold]Help[/]",
             box=ROUNDED,
             padding=(1, 2),
-            border_style=COLORS['muted'],
+            border_style=COLORS["muted"],
         )
 
         self.console.print(panel)
@@ -615,7 +643,7 @@ class InteractiveREPL:
 
         table = Table(show_header=True, header_style=f"bold {COLORS['primary']}", box=ROUNDED)
         table.add_column("Skill", style="bold")
-        table.add_column("Description", style=COLORS['muted'])
+        table.add_column("Description", style=COLORS["muted"])
 
         for skill in skills_list:
             table.add_row(skill.name, skill.description)
@@ -642,51 +670,63 @@ class InteractiveREPL:
         else:
             self._print_warning(f"Unknown memory command: {subcmd}")
             self.console.print(f"[{COLORS['muted']}]Available: on, off, stats, decay[/]")
-            self.console.print(f"[{COLORS['muted']}]CLI: kira memory list, kira memory cleanup, kira memory consolidate[/]")
+            self.console.print(
+                f"[{COLORS['muted']}]CLI: kira memory list, kira memory cleanup, kira memory consolidate[/]"
+            )
 
     def _show_memory_stats(self, detailed: bool = False) -> None:
         """Show memory statistics."""
         store = MemoryStore()
         stats = store.get_stats()
 
-        status = f"[{COLORS['success']}]enabled[/]" if not self.no_memory else f"[{COLORS['error']}]disabled[/]"
+        status = (
+            f"[{COLORS['success']}]enabled[/]"
+            if not self.no_memory
+            else f"[{COLORS['error']}]disabled[/]"
+        )
         self.console.print(f"[{COLORS['primary']}]Memory:[/] {status}")
         self.console.print(f"[{COLORS['muted']}]Total entries:[/] {stats['total']}")
 
-        if stats['total'] == 0:
+        if stats["total"] == 0:
             return
 
-        if detailed or stats['total'] > 0:
+        if detailed or stats["total"] > 0:
             # Show by type
-            if stats.get('by_type'):
+            if stats.get("by_type"):
                 type_parts = []
-                for mtype, count in stats['by_type'].items():
+                for mtype, count in stats["by_type"].items():
                     type_parts.append(f"{mtype[:4]}: {count}")
                 self.console.print(f"[{COLORS['muted']}]By type:[/] {', '.join(type_parts)}")
 
             # Show by source
-            if stats.get('by_source'):
+            if stats.get("by_source"):
                 source_parts = []
-                for source, count in stats['by_source'].items():
+                for source, count in stats["by_source"].items():
                     source_parts.append(f"{source}: {count}")
                 self.console.print(f"[{COLORS['muted']}]By source:[/] {', '.join(source_parts)}")
 
             if detailed:
                 # Show average access count
-                self.console.print(f"[{COLORS['muted']}]Avg access count:[/] {stats.get('avg_access_count', 0):.1f}")
+                self.console.print(
+                    f"[{COLORS['muted']}]Avg access count:[/] {stats.get('avg_access_count', 0):.1f}"
+                )
 
                 # Show importance distribution
-                if stats.get('by_importance'):
+                if stats.get("by_importance"):
                     imp_parts = []
-                    for imp, count in sorted(stats['by_importance'].items(), reverse=True):
+                    for imp, count in sorted(stats["by_importance"].items(), reverse=True):
                         if count > 0:
                             imp_parts.append(f"{imp}: {count}")
                     if imp_parts:
-                        self.console.print(f"[{COLORS['muted']}]By importance:[/] {', '.join(imp_parts[:5])}")
+                        self.console.print(
+                            f"[{COLORS['muted']}]By importance:[/] {', '.join(imp_parts[:5])}"
+                        )
 
         self.console.print()
         self.console.print(f"[{COLORS['muted']}]Commands: /memory on|off|stats|decay | /learned[/]")
-        self.console.print(f"[{COLORS['muted']}]CLI: kira memory list, kira memory cleanup --dry-run[/]")
+        self.console.print(
+            f"[{COLORS['muted']}]CLI: kira memory list, kira memory cleanup --dry-run[/]"
+        )
 
     def _show_learned(self) -> None:
         """Show recently auto-learned memories."""
@@ -698,7 +738,9 @@ class InteractiveREPL:
 
         if not memories:
             self.console.print(f"[{COLORS['muted']}]No auto-learned memories yet[/]")
-            self.console.print(f"[{COLORS['muted']}]Kira learns from your conversations automatically[/]")
+            self.console.print(
+                f"[{COLORS['muted']}]Kira learns from your conversations automatically[/]"
+            )
             return
 
         self.console.print(f"[{COLORS['primary']}]Recently Learned[/]\n")
@@ -706,12 +748,16 @@ class InteractiveREPL:
         for mem in memories:
             # Truncate content for display
             content = mem.content[:80] + "..." if len(mem.content) > 80 else mem.content
-            type_icon = {"semantic": "💡", "episodic": "📝", "procedural": "⚙️"}.get(mem.memory_type.value, "•")
+            type_icon = {"semantic": "💡", "episodic": "📝", "procedural": "⚙️"}.get(
+                mem.memory_type.value, "•"
+            )
             self.console.print(f"  {type_icon} [{COLORS['muted']}]{mem.key}[/]")
             self.console.print(f"     {content}")
             self.console.print()
 
-        self.console.print(f"[{COLORS['muted']}]Total auto-learned: {len(memories)} | CLI: kira memory list[/]")
+        self.console.print(
+            f"[{COLORS['muted']}]Total auto-learned: {len(memories)} | CLI: kira memory list[/]"
+        )
 
     def _show_memory_decay(self) -> None:
         """Show memory decay report."""
@@ -736,12 +782,14 @@ class InteractiveREPL:
         table.add_column("Age", justify="right", width=6)
 
         for item in report:
-            if item['decay_percentage'] > 0:
+            if item["decay_percentage"] > 0:
                 decay_str = f"{item['decay_percentage']:.0f}%"
-                decay_style = COLORS['warning'] if item['decay_percentage'] > 20 else COLORS['muted']
+                decay_style = (
+                    COLORS["warning"] if item["decay_percentage"] > 20 else COLORS["muted"]
+                )
                 table.add_row(
-                    item['key'][:25],
-                    str(item['original_importance']),
+                    item["key"][:25],
+                    str(item["original_importance"]),
                     f"{item['decayed_importance']:.1f}",
                     f"[{decay_style}]{decay_str}[/]",
                     f"{item['age_days']}d",
@@ -749,7 +797,9 @@ class InteractiveREPL:
 
         self.console.print(table)
         self.console.print()
-        self.console.print(f"[{COLORS['muted']}]Run 'kira memory cleanup --dry-run' to preview cleanup[/]")
+        self.console.print(
+            f"[{COLORS['muted']}]Run 'kira memory cleanup --dry-run' to preview cleanup[/]"
+        )
 
     def _handle_project(self, args: str) -> None:
         """Handle /project command for project-local shared memory."""
@@ -777,17 +827,25 @@ class InteractiveREPL:
         """Show project memories (shared with team)."""
         if not store.exists():
             self.console.print(f"[{COLORS['muted']}]No project memory file found[/]")
-            self.console.print(f"[{COLORS['muted']}]Use '/project init' to create .kira/project-memory.yaml[/]")
+            self.console.print(
+                f"[{COLORS['muted']}]Use '/project init' to create .kira/project-memory.yaml[/]"
+            )
             self.console.print()
-            self.console.print(f"[{COLORS['primary']}]Project memories are shared with your team via git.[/]")
-            self.console.print(f"[{COLORS['muted']}]Mark learnings with [PROJECT:key] to save them.[/]")
+            self.console.print(
+                f"[{COLORS['primary']}]Project memories are shared with your team via git.[/]"
+            )
+            self.console.print(
+                f"[{COLORS['muted']}]Mark learnings with [PROJECT:key] to save them.[/]"
+            )
             return
 
         memories = store.list_all()
 
         if not memories:
             self.console.print(f"[{COLORS['muted']}]No project memories yet[/]")
-            self.console.print(f"[{COLORS['muted']}]Mark learnings with [PROJECT:key] to save them[/]")
+            self.console.print(
+                f"[{COLORS['muted']}]Mark learnings with [PROJECT:key] to save them[/]"
+            )
             return
 
         self.console.print(f"[{COLORS['primary']}]Project Knowledge[/] (shared via git)")
@@ -811,13 +869,17 @@ class InteractiveREPL:
 
         self.console.print(table)
         self.console.print()
-        self.console.print(f"[{COLORS['muted']}]File: .kira/project-memory.yaml (commit to share)[/]")
+        self.console.print(
+            f"[{COLORS['muted']}]File: .kira/project-memory.yaml (commit to share)[/]"
+        )
 
     def _add_project_memory(self, store, args: str) -> None:
         """Add a project memory manually."""
         if not args:
             self.console.print(f"[{COLORS['muted']}]Usage: /project add <key> <content>[/]")
-            self.console.print(f"[{COLORS['muted']}]Example: /project add auth:pattern We use JWT tokens for auth[/]")
+            self.console.print(
+                f"[{COLORS['muted']}]Example: /project add auth:pattern We use JWT tokens for auth[/]"
+            )
             return
 
         parts = args.split(maxsplit=1)
@@ -881,7 +943,9 @@ class InteractiveREPL:
         self.console.print()
 
         # Branch info
-        branch_style = COLORS['success'] if status.branch in ('main', 'master') else COLORS['accent']
+        branch_style = (
+            COLORS["success"] if status.branch in ("main", "master") else COLORS["accent"]
+        )
         self.console.print(f"  Branch: [{branch_style}]{status.branch}[/]")
 
         if status.ahead or status.behind:
@@ -949,7 +1013,7 @@ class InteractiveREPL:
 
         self.console.print(f"[{COLORS['primary']}]Suggested Commit[/]")
         self.console.print()
-        self.console.print(Panel(message, border_style=COLORS['muted']))
+        self.console.print(Panel(message, border_style=COLORS["muted"]))
         self.console.print()
 
         # Show what will be committed
@@ -960,8 +1024,12 @@ class InteractiveREPL:
             self.console.print(f"  ... and {len(status.staged) - 5} more")
 
         self.console.print()
-        self.console.print(f"[{COLORS['accent']}]To commit:[/] git commit -m \"{suggestion.subject}\"")
-        self.console.print(f"[{COLORS['muted']}]Or edit the message and run: /commit <your message>[/]")
+        self.console.print(
+            f'[{COLORS["accent"]}]To commit:[/] git commit -m "{suggestion.subject}"'
+        )
+        self.console.print(
+            f"[{COLORS['muted']}]Or edit the message and run: /commit <your message>[/]"
+        )
 
         # If args provided, use as message and commit
         if args.strip():
@@ -1030,7 +1098,7 @@ class InteractiveREPL:
         )
         table.add_column("Setting", style="bold")
         table.add_column("Value")
-        table.add_column("Toggle", style=COLORS['muted'])
+        table.add_column("Toggle", style=COLORS["muted"])
 
         def status(enabled: bool) -> str:
             return f"[{COLORS['success']}]on[/]" if enabled else f"[{COLORS['error']}]off[/]"
@@ -1042,7 +1110,7 @@ class InteractiveREPL:
             ("memory", status(not self.no_memory and self.config.memory.enabled), "/memory on|off"),
             ("thinking", status(self.config.thinking.enabled), "/thinking on|off"),
             ("autonomous", status(self.config.autonomous.enabled), "/autonomous on|off"),
-            ("personality", status(self.config.personality.enabled), f"/personality on|off"),
+            ("personality", status(self.config.personality.enabled), "/personality on|off"),
             ("verbose", status(self.verbose), "/verbose on|off"),
             ("trust", status(self.trust or self.config.kira.trust_all_tools), "/trust on|off"),
             ("timeout", f"{self.config.kira.timeout}s", "/timeout <secs>"),
@@ -1053,11 +1121,14 @@ class InteractiveREPL:
 
         self.console.print(table)
         self.console.print()
-        self.console.print(f"[{COLORS['muted']}]Quick toggles: /memory off, /thinking on, /model opus[/]")
+        self.console.print(
+            f"[{COLORS['muted']}]Quick toggles: /memory off, /thinking on, /model opus[/]"
+        )
         self.console.print(f"[{COLORS['muted']}]Save changes:  /config save[/]")
 
     def _set_config(self, key: str, value: str) -> None:
         """Set a configuration value."""
+
         def parse_bool(v: str) -> bool:
             return v.lower() in ("true", "1", "yes", "on")
 
@@ -1146,8 +1217,8 @@ class InteractiveREPL:
         )
         table.add_column("#", style="dim", width=3, justify="center")
         table.add_column("Model")
-        table.add_column("Tier", style=COLORS['secondary'])
-        table.add_column("Description", style=COLORS['muted'])
+        table.add_column("Tier", style=COLORS["secondary"])
+        table.add_column("Description", style=COLORS["muted"])
 
         for i, model in enumerate(models, 1):
             marker = f"[{COLORS['success']}]>[/]" if model.name == current else " "
@@ -1161,7 +1232,9 @@ class InteractiveREPL:
         self.console.print(table)
 
         try:
-            choice = input(f"\n[{COLORS['muted']}]Select (1-{len(models)}) or Enter to cancel:[/] ").strip()
+            choice = input(
+                f"\n[{COLORS['muted']}]Select (1-{len(models)}) or Enter to cancel:[/] "
+            ).strip()
             if not choice:
                 return
 
@@ -1249,7 +1322,9 @@ class InteractiveREPL:
             self._init_context()
         else:
             self._print_warning(f"Unknown context command: {subcmd}")
-            self.console.print(f"[{COLORS['muted']}]Available: show, refresh, note, log, issue, save, init[/]")
+            self.console.print(
+                f"[{COLORS['muted']}]Available: show, refresh, note, log, issue, save, init[/]"
+            )
 
     def _show_context(self) -> None:
         """Display current project context."""
@@ -1262,20 +1337,24 @@ class InteractiveREPL:
 
         # Build display
         lines = []
-        lines.append(f"[bold {COLORS['primary']}]Project: {ctx.name or self.context_manager.project_dir.name}[/]")
+        lines.append(
+            f"[bold {COLORS['primary']}]Project: {ctx.name or self.context_manager.project_dir.name}[/]"
+        )
 
         if ctx.last_updated:
-            lines.append(f"[{COLORS['muted']}]Updated: {ctx.last_updated.strftime('%Y-%m-%d %H:%M')} by @{ctx.last_updated_by}[/]")
+            lines.append(
+                f"[{COLORS['muted']}]Updated: {ctx.last_updated.strftime('%Y-%m-%d %H:%M')} by @{ctx.last_updated_by}[/]"
+            )
 
         lines.append("")
 
         if ctx.overview:
-            lines.append(f"[bold]Overview[/]")
+            lines.append("[bold]Overview[/]")
             lines.append(ctx.overview[:300] + ("..." if len(ctx.overview) > 300 else ""))
             lines.append("")
 
         if ctx.tech_stack.languages or ctx.tech_stack.frameworks:
-            lines.append(f"[bold]Tech Stack[/]")
+            lines.append("[bold]Tech Stack[/]")
             if ctx.tech_stack.languages:
                 lines.append(f"  Languages: {', '.join(ctx.tech_stack.languages)}")
             if ctx.tech_stack.frameworks:
@@ -1285,7 +1364,7 @@ class InteractiveREPL:
         # Recent changes
         recent = ctx.get_recent_changes(3)
         if recent:
-            lines.append(f"[bold]Recent Changes[/]")
+            lines.append("[bold]Recent Changes[/]")
             for change in recent:
                 date_str = change.date.strftime("%Y-%m-%d")
                 lines.append(f"  [{date_str}] {change.summary} (@{change.author})")
@@ -1293,7 +1372,7 @@ class InteractiveREPL:
 
         # Known issues
         if ctx.known_issues:
-            lines.append(f"[bold]Known Issues[/]")
+            lines.append("[bold]Known Issues[/]")
             for issue in ctx.known_issues[:3]:
                 lines.append(f"  [{issue.severity}] {issue.description}")
             lines.append("")
@@ -1304,7 +1383,7 @@ class InteractiveREPL:
             subtitle=f"[{COLORS['muted']}]/context refresh to update[/]",
             box=ROUNDED,
             padding=(1, 2),
-            border_style=COLORS['primary'],
+            border_style=COLORS["primary"],
         )
         self.console.print(panel)
 
@@ -1326,7 +1405,9 @@ class InteractiveREPL:
             self.context_manager.save(new_context)
 
         self._print_success("Project context updated")
-        self.console.print(f"[{COLORS['muted']}]Found: {', '.join(new_context.tech_stack.languages[:3])}[/]")
+        self.console.print(
+            f"[{COLORS['muted']}]Found: {', '.join(new_context.tech_stack.languages[:3])}[/]"
+        )
         self.console.print(f"[{COLORS['muted']}]File: {self.context_manager.context_path}[/]")
 
     def _add_context_note(self, note: str) -> None:
@@ -1401,7 +1482,9 @@ class InteractiveREPL:
     def _init_context(self) -> None:
         """Initialize project context."""
         if self.context_manager.exists():
-            self.console.print(f"[{COLORS['warning']}]Context already exists. Use /context refresh to update.[/]")
+            self.console.print(
+                f"[{COLORS['warning']}]Context already exists. Use /context refresh to update.[/]"
+            )
             return
 
         self._refresh_context()
@@ -1453,20 +1536,20 @@ class InteractiveREPL:
         if not args:
             self.console.print(f"[{COLORS['primary']}]Usage:[/] /view <file>[:line[-end]]")
             self.console.print(f"[{COLORS['muted']}]Examples:[/]")
-            self.console.print(f"  /view src/app.py          [dim]View entire file[/dim]")
-            self.console.print(f"  /view src/app.py:50       [dim]View from line 50[/dim]")
-            self.console.print(f"  /view src/app.py:50-100   [dim]View lines 50-100[/dim]")
+            self.console.print("  /view src/app.py          [dim]View entire file[/dim]")
+            self.console.print("  /view src/app.py:50       [dim]View from line 50[/dim]")
+            self.console.print("  /view src/app.py:50-100   [dim]View lines 50-100[/dim]")
             return
 
         # Parse file path and optional line range
         start_line = 1
         end_line = None
 
-        if ':' in args:
-            path_part, line_part = args.rsplit(':', 1)
-            if '-' in line_part:
+        if ":" in args:
+            path_part, line_part = args.rsplit(":", 1)
+            if "-" in line_part:
                 try:
-                    start_str, end_str = line_part.split('-', 1)
+                    start_str, end_str = line_part.split("-", 1)
                     start_line = int(start_str)
                     end_line = int(end_str)
                 except ValueError:
@@ -1502,49 +1585,49 @@ class InteractiveREPL:
 
         # Detect language from extension
         ext_to_lang = {
-            '.py': 'python',
-            '.js': 'javascript',
-            '.ts': 'typescript',
-            '.tsx': 'typescript',
-            '.jsx': 'javascript',
-            '.java': 'java',
-            '.go': 'go',
-            '.rs': 'rust',
-            '.rb': 'ruby',
-            '.php': 'php',
-            '.c': 'c',
-            '.cpp': 'cpp',
-            '.h': 'c',
-            '.hpp': 'cpp',
-            '.cs': 'csharp',
-            '.swift': 'swift',
-            '.kt': 'kotlin',
-            '.scala': 'scala',
-            '.sh': 'bash',
-            '.bash': 'bash',
-            '.zsh': 'zsh',
-            '.json': 'json',
-            '.yaml': 'yaml',
-            '.yml': 'yaml',
-            '.toml': 'toml',
-            '.xml': 'xml',
-            '.html': 'html',
-            '.css': 'css',
-            '.scss': 'scss',
-            '.sql': 'sql',
-            '.md': 'markdown',
-            '.dockerfile': 'dockerfile',
+            ".py": "python",
+            ".js": "javascript",
+            ".ts": "typescript",
+            ".tsx": "typescript",
+            ".jsx": "javascript",
+            ".java": "java",
+            ".go": "go",
+            ".rs": "rust",
+            ".rb": "ruby",
+            ".php": "php",
+            ".c": "c",
+            ".cpp": "cpp",
+            ".h": "c",
+            ".hpp": "cpp",
+            ".cs": "csharp",
+            ".swift": "swift",
+            ".kt": "kotlin",
+            ".scala": "scala",
+            ".sh": "bash",
+            ".bash": "bash",
+            ".zsh": "zsh",
+            ".json": "json",
+            ".yaml": "yaml",
+            ".yml": "yaml",
+            ".toml": "toml",
+            ".xml": "xml",
+            ".html": "html",
+            ".css": "css",
+            ".scss": "scss",
+            ".sql": "sql",
+            ".md": "markdown",
+            ".dockerfile": "dockerfile",
         }
 
         suffix = file_path.suffix.lower()
-        language = ext_to_lang.get(suffix, 'text')
+        language = ext_to_lang.get(suffix, "text")
 
         # Handle Dockerfile without extension
-        if file_path.name.lower() == 'dockerfile':
-            language = 'dockerfile'
+        if file_path.name.lower() == "dockerfile":
+            language = "dockerfile"
 
         # Calculate line range
-        lines = content.split('\n')
+        lines = content.split("\n")
         total_lines = len(lines)
 
         if end_line is None:
@@ -1559,8 +1642,8 @@ class InteractiveREPL:
         end_line = max(start_line, min(end_line, total_lines))
 
         # Extract the lines
-        selected_lines = lines[start_line - 1:end_line]
-        selected_content = '\n'.join(selected_lines)
+        selected_lines = lines[start_line - 1 : end_line]
+        selected_content = "\n".join(selected_lines)
 
         # Create syntax display
         syntax = Syntax(
@@ -1577,9 +1660,13 @@ class InteractiveREPL:
         from rich.panel import Panel
 
         # Build title with file info
-        rel_path = file_path.relative_to(Path.cwd()) if file_path.is_relative_to(Path.cwd()) else file_path
+        rel_path = (
+            file_path.relative_to(Path.cwd()) if file_path.is_relative_to(Path.cwd()) else file_path
+        )
         if start_line > 1 or end_line < total_lines:
-            title = f"[bold cyan]{rel_path}[/] [dim]({start_line}-{end_line} of {total_lines})[/dim]"
+            title = (
+                f"[bold cyan]{rel_path}[/] [dim]({start_line}-{end_line} of {total_lines})[/dim]"
+            )
         else:
             title = f"[bold cyan]{rel_path}[/] [dim]({total_lines} lines)[/dim]"
 
@@ -1635,8 +1722,8 @@ class InteractiveREPL:
             self.console.print(f"[{COLORS['primary']}]Run Log Statistics[/]")
             self.console.print(f"[{COLORS['muted']}]Total runs:[/] {stats['total_runs']}")
             self.console.print(f"[{COLORS['muted']}]Total messages:[/] {stats['total_entries']}")
-            if stats['by_mode']:
-                mode_parts = [f"{m}: {c}" for m, c in stats['by_mode'].items()]
+            if stats["by_mode"]:
+                mode_parts = [f"{m}: {c}" for m, c in stats["by_mode"].items()]
                 self.console.print(f"[{COLORS['muted']}]By mode:[/] {', '.join(mode_parts)}")
 
         elif subcmd == "current":
@@ -1660,12 +1747,17 @@ class InteractiveREPL:
             self.log_store.end_run(self.run_id)
 
         self.console.print()
-        self.console.print(f"[{COLORS['muted']}]Session: {self.message_count} messages in {mins}m {secs}s[/]")
+        self.console.print(
+            f"[{COLORS['muted']}]Session: {self.message_count} messages in {mins}m {secs}s[/]"
+        )
 
         if self.config.personality.enabled:
             from ..core.personality import get_personality
+
             personality = get_personality()
-            self.console.print(f"[bold {COLORS['primary']}]{personality.name}:[/] See you next time!")
+            self.console.print(
+                f"[bold {COLORS['primary']}]{personality.name}:[/] See you next time!"
+            )
         else:
             self.console.print(f"[{COLORS['primary']}]Goodbye![/]")
 
@@ -1731,10 +1823,12 @@ class InteractiveREPL:
         collected: list[str] = []
 
         # Show spinner while collecting response
-        spinner = Spinner("dots", text=f"[{COLORS['muted']}]thinking...[/]", style=COLORS['primary'])
+        spinner = Spinner(
+            "dots", text=f"[{COLORS['muted']}]thinking...[/]", style=COLORS["primary"]
+        )
 
         try:
-            with Live(spinner, console=self.console, refresh_per_second=10, transient=True) as live:
+            with Live(spinner, console=self.console, refresh_per_second=10, transient=True):
                 async for chunk in client.run(full_prompt, agent=self.agent, resume=self.resume):
                     collected.append(chunk)
             # After first successful message, enable resume for subsequent messages
@@ -1755,6 +1849,7 @@ class InteractiveREPL:
             self._print_error(f"Error: {e}")
             if self.verbose:
                 import traceback
+
                 self.console.print(f"[{COLORS['muted']}]{traceback.format_exc()}[/]")
             return
 
@@ -1795,9 +1890,7 @@ class InteractiveREPL:
 
         # Autonomous mode: verify and self-correct if needed
         if self.config.autonomous.enabled:
-            await self._autonomous_verify(
-                prompt, full_output, session_manager, client
-            )
+            await self._autonomous_verify(prompt, full_output, session_manager, client)
 
     async def _autonomous_verify(
         self,
@@ -1824,7 +1917,7 @@ class InteractiveREPL:
         # Skip verification if no code changes detected
         if not files_modified and not any(
             kw in output.lower()
-            for kw in ['def ', 'class ', 'function ', 'import ', 'const ', 'let ']
+            for kw in ["def ", "class ", "function ", "import ", "const ", "let "]
         ):
             return
 
@@ -1875,7 +1968,7 @@ class InteractiveREPL:
                     )
 
             # Auto-retry if enabled and under retry limit
-            retries = getattr(self, '_verify_retries', 0)
+            retries = getattr(self, "_verify_retries", 0)
             max_retries = self.config.autonomous.max_retries
 
             if retries < max_retries:
@@ -1885,7 +1978,9 @@ class InteractiveREPL:
                 )
 
                 # Build correction prompt
-                issues = "\n".join(f"- {c.message}" for c in result.checks if c.status == CheckStatus.FAILED)
+                issues = "\n".join(
+                    f"- {c.message}" for c in result.checks if c.status == CheckStatus.FAILED
+                )
                 correction_prompt = f"""The previous attempt had issues that need fixing:
 
 {issues}
@@ -1907,7 +2002,11 @@ Please fix these issues. Show only the corrected code/solution."""
         # Check if we're in a meaningful directory (has files or is a git repo)
         has_content = any(cwd.iterdir()) if cwd.exists() else False
         is_git_repo = (cwd / ".git").exists()
-        is_project = (cwd / ".kira").exists() or (cwd / "pyproject.toml").exists() or (cwd / "package.json").exists()
+        is_project = (
+            (cwd / ".kira").exists()
+            or (cwd / "pyproject.toml").exists()
+            or (cwd / "package.json").exists()
+        )
 
         # If current directory seems valid, use it
         if has_content or is_git_repo or is_project:

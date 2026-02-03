@@ -8,12 +8,11 @@ Provides tools for:
 
 from __future__ import annotations
 
-import hashlib
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from .models import Memory, MemorySource, MemoryType
+from .models import Memory, MemorySource
 from .store import MemoryStore
 
 
@@ -82,7 +81,6 @@ class MemoryMaintenance:
         memories = self.store.list_all(source=source_filter, limit=10000)
 
         now = datetime.utcnow()
-        cutoff_date = datetime.utcnow()
 
         for memory in memories:
             # Calculate age
@@ -130,15 +128,17 @@ class MemoryMaintenance:
 
         # Compare all pairs (O(n^2) but memories should be limited)
         for i, m1 in enumerate(memories):
-            for m2 in memories[i + 1:]:
+            for m2 in memories[i + 1 :]:
                 similarity = self._calculate_similarity(m1.content, m2.content)
 
                 if similarity >= threshold:
-                    duplicates.append(DuplicatePair(
-                        memory1=m1,
-                        memory2=m2,
-                        similarity=similarity,
-                    ))
+                    duplicates.append(
+                        DuplicatePair(
+                            memory1=m1,
+                            memory2=m2,
+                            similarity=similarity,
+                        )
+                    )
 
                     if len(duplicates) >= limit:
                         return duplicates
@@ -233,7 +233,7 @@ class MemoryMaintenance:
     def _tokenize(self, text: str) -> list[str]:
         """Tokenize text into normalized words."""
         # Convert to lowercase and extract words
-        words = re.findall(r'\b[a-z]+\b', text.lower())
+        words = re.findall(r"\b[a-z]+\b", text.lower())
         # Filter short words
         return [w for w in words if len(w) > 2]
 
@@ -352,18 +352,23 @@ class MemoryMaintenance:
         report = []
         for memory in memories:
             decayed = memory.decayed_importance
-            decay_pct = ((memory.importance - decayed) / memory.importance * 100
-                        if memory.importance > 0 else 0)
+            decay_pct = (
+                (memory.importance - decayed) / memory.importance * 100
+                if memory.importance > 0
+                else 0
+            )
 
-            report.append({
-                "key": memory.key,
-                "original_importance": memory.importance,
-                "decayed_importance": round(decayed, 2),
-                "decay_percentage": round(decay_pct, 1),
-                "access_count": memory.access_count,
-                "last_accessed": memory.last_accessed_at,
-                "age_days": (datetime.utcnow() - memory.created_at).days,
-            })
+            report.append(
+                {
+                    "key": memory.key,
+                    "original_importance": memory.importance,
+                    "decayed_importance": round(decayed, 2),
+                    "decay_percentage": round(decay_pct, 1),
+                    "access_count": memory.access_count,
+                    "last_accessed": memory.last_accessed_at,
+                    "age_days": (datetime.utcnow() - memory.created_at).days,
+                }
+            )
 
         # Sort by decay percentage descending
         report.sort(key=lambda x: x["decay_percentage"], reverse=True)

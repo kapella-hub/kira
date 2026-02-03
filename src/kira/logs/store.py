@@ -23,6 +23,7 @@ class RunLogStore:
         """
         if db_path is None:
             from ..core.config import Config
+
             db_path = Config.USER_DATA_DIR / "runs.db"
 
         db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -240,9 +241,7 @@ class RunLogStore:
         """
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            row = conn.execute(
-                "SELECT * FROM runs WHERE id = ?", (run_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
 
             if not row:
                 return None
@@ -415,9 +414,7 @@ class RunLogStore:
 
             # By mode
             by_mode = {}
-            for row in conn.execute(
-                "SELECT mode, COUNT(*) FROM runs GROUP BY mode"
-            ).fetchall():
+            for row in conn.execute("SELECT mode, COUNT(*) FROM runs GROUP BY mode").fetchall():
                 by_mode[row[0]] = row[1]
 
             return {
@@ -484,11 +481,7 @@ class RunLogStore:
             model=row["model"],
             working_dir=row["working_dir"],
             started_at=datetime.fromisoformat(row["started_at"]),
-            ended_at=(
-                datetime.fromisoformat(row["ended_at"])
-                if row["ended_at"]
-                else None
-            ),
+            ended_at=(datetime.fromisoformat(row["ended_at"]) if row["ended_at"] else None),
             entry_count=row["entry_count"],
             total_duration=row["total_duration"] or 0.0,
             skills=json.loads(row["skills"]) if row["skills"] else [],

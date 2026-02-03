@@ -2,6 +2,7 @@
 
 from . import defaults
 from .agent import AgentResult, KiraAgent, run_autonomous
+from .client import KiraClient, KiraNotFoundError
 from .config import (
     AgentConfig,
     AutonomousConfig,
@@ -12,9 +13,8 @@ from .config import (
     ThinkingConfig,
     WorkflowConfig,
 )
-from .personality import Personality, get_personality
-from .client import KiraClient, KiraNotFoundError
 from .models import ModelInfo, get_available_models, get_model_info, resolve_model
+from .personality import Personality, get_personality
 from .verifier import CheckStatus, CheckType, VerificationCheck, VerificationResult, Verifier
 
 __all__ = [

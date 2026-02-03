@@ -7,10 +7,7 @@ with fallback to defaults if kiro-cli isn't installed.
 from __future__ import annotations
 
 import re
-import shutil
-import subprocess
-from dataclasses import dataclass, field
-from typing import ClassVar
+from dataclasses import dataclass
 
 
 @dataclass
@@ -24,15 +21,14 @@ class ModelInfo:
     credit_multiplier: float = 1.0
 
     @classmethod
-    def from_kiro_line(cls, line: str) -> "ModelInfo | None":
+    def from_kiro_line(cls, line: str) -> ModelInfo | None:
         """Parse a model from kiro-cli output line.
 
         Expected format: "model-name | Nx credit | Description"
         """
         # Match: name | multiplier | description
         match = re.match(
-            r"^\s*([a-zA-Z0-9._-]+)\s*\|\s*([\d.]+)x\s*credit\s*\|\s*(.+)$",
-            line.strip()
+            r"^\s*([a-zA-Z0-9._-]+)\s*\|\s*([\d.]+)x\s*credit\s*\|\s*(.+)$", line.strip()
         )
         if not match:
             return None
@@ -156,6 +152,7 @@ def _build_aliases() -> dict[str, str]:
     # Sort by version (e.g., 4.5 > 4) - latest first
     def version_key(m: ModelInfo) -> float:
         import re
+
         match = re.search(r"(\d+\.?\d*)", m.name)
         return float(match.group(1)) if match else 0
 

@@ -138,12 +138,8 @@ class FailureAnalyzer:
         Returns:
             Analysis of the failure.
         """
-        failure_type = self.detect_failure_type(
-            attempt.error or "", attempt.result
-        )
-        strategy = self.get_strategy_for_failure(
-            failure_type, attempt.attempt_number
-        )
+        failure_type = self.detect_failure_type(attempt.error or "", attempt.result)
+        strategy = self.get_strategy_for_failure(failure_type, attempt.attempt_number)
 
         # Generate basic root cause
         root_cause = self._infer_root_cause(failure_type, attempt)
@@ -180,9 +176,7 @@ class FailureAnalyzer:
         # Build context from previous attempts
         attempts_context = ""
         if previous_attempts:
-            attempts_context = "\n\n".join(
-                a.to_context() for a in previous_attempts
-            )
+            attempts_context = "\n\n".join(a.to_context() for a in previous_attempts)
 
         prompt = f"""Analyze this execution failure and provide structured analysis.
 
@@ -223,9 +217,7 @@ How confident you are in this analysis.
         # Parse response
         return self._parse_analysis(raw_output, attempt)
 
-    def _infer_root_cause(
-        self, failure_type: FailureType, attempt: ExecutionAttempt
-    ) -> str:
+    def _infer_root_cause(self, failure_type: FailureType, attempt: ExecutionAttempt) -> str:
         """Infer root cause from failure type and attempt data."""
         error = attempt.error or attempt.result or ""
 
@@ -252,9 +244,7 @@ How confident you are in this analysis.
 
         return base_cause
 
-    def _suggest_fixes(
-        self, failure_type: FailureType, attempt: ExecutionAttempt
-    ) -> list[str]:
+    def _suggest_fixes(self, failure_type: FailureType, attempt: ExecutionAttempt) -> list[str]:
         """Suggest fixes based on failure type."""
         error = attempt.error or attempt.result or ""
 
@@ -304,18 +294,12 @@ How confident you are in this analysis.
 
         return fixes[:3]  # Return top 3 suggestions
 
-    def _parse_analysis(
-        self, raw_output: str, attempt: ExecutionAttempt
-    ) -> FailureAnalysis:
+    def _parse_analysis(self, raw_output: str, attempt: ExecutionAttempt) -> FailureAnalysis:
         """Parse LLM analysis output."""
         # Extract fields using markers
-        failure_type_match = re.search(
-            r"\[FAILURE_TYPE:([^\]]+)\]", raw_output
-        )
+        failure_type_match = re.search(r"\[FAILURE_TYPE:([^\]]+)\]", raw_output)
         root_cause_match = re.search(r"\[ROOT_CAUSE:([^\]]+)\]", raw_output)
-        factors_match = re.search(
-            r"\[CONTRIBUTING_FACTORS:([^\]]+)\]", raw_output
-        )
+        factors_match = re.search(r"\[CONTRIBUTING_FACTORS:([^\]]+)\]", raw_output)
         fixes_match = re.search(r"\[SUGGESTED_FIXES:([^\]]+)\]", raw_output)
         strategy_match = re.search(r"\[STRATEGY:([^\]]+)\]", raw_output)
         confidence_match = re.search(r"\[CONFIDENCE:([^\]]+)\]", raw_output)
@@ -326,9 +310,7 @@ How confident you are in this analysis.
             try:
                 failure_type = FailureType(failure_type_match.group(1).strip())
             except ValueError:
-                failure_type = self.detect_failure_type(
-                    attempt.error or "", attempt.result
-                )
+                failure_type = self.detect_failure_type(attempt.error or "", attempt.result)
 
         # Parse strategy
         strategy = CorrectionStrategy.MODIFY_APPROACH
@@ -354,9 +336,7 @@ How confident you are in this analysis.
                 else self._infer_root_cause(failure_type, attempt)
             ),
             contributing_factors=(
-                [f.strip() for f in factors_match.group(1).split("|")]
-                if factors_match
-                else []
+                [f.strip() for f in factors_match.group(1).split("|")] if factors_match else []
             ),
             suggested_fixes=(
                 [f.strip() for f in fixes_match.group(1).split("|")]

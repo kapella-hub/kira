@@ -76,7 +76,4 @@ class RunLog:
 
     def summary(self) -> str:
         """One-line summary of the run."""
-        return (
-            f"[{self.mode_display}] {self.entry_count} messages, "
-            f"{self.duration_display}"
-        )
+        return f"[{self.mode_display}] {self.entry_count} messages, {self.duration_display}"

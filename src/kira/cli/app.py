@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
 from .commands import config, logs, memory, skills
 from .output import console, print_error, print_info, print_success
+
+if TYPE_CHECKING:
+    from ..thinking import ThinkingResult
 
 app = typer.Typer(
     name="kira",
@@ -35,11 +38,11 @@ def main(
         typer.Option("--continue", "-c", help="Continue the previous conversation"),
     ] = False,
     model: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--model", "-m", help="Model to use (fast/smart/opus or model name)"),
     ] = None,
     skill: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         typer.Option("--skill", "-s", help="Activate skill(s)"),
     ] = None,
     trust: Annotated[
@@ -47,7 +50,7 @@ def main(
         typer.Option("--trust", "-t", help="Trust all tools (no confirmations)"),
     ] = False,
     agent: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--agent", "-a", help="Kira agent to use"),
     ] = None,
     no_memory: Annotated[
@@ -112,11 +115,11 @@ def chat(
         typer.Option("--continue", "-c", help="Continue the previous conversation"),
     ] = False,
     model: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--model", "-m", help="Model to use (fast/smart/opus or model name)"),
     ] = None,
     skill: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         typer.Option("--skill", "-s", help="Activate skill(s)"),
     ] = None,
     trust: Annotated[
@@ -129,7 +132,11 @@ def chat(
     ] = False,
     autonomous: Annotated[
         bool,
-        typer.Option("--autonomous", "-A", help="Full autonomous mode (reasoning + self-correction + verification)"),
+        typer.Option(
+            "--autonomous",
+            "-A",
+            help="Full autonomous mode (reasoning + self-correction + verification)",
+        ),
     ] = False,
     max_retries: Annotated[
         int,
@@ -144,7 +151,7 @@ def chat(
         typer.Option("--no-learn", help="Disable learning from execution (autonomous mode)"),
     ] = False,
     workflow: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--workflow", "-W", help="Run a workflow (e.g., 'coding')"),
     ] = None,
     auto_workflow: Annotated[
@@ -152,11 +159,11 @@ def chat(
         typer.Option("--auto-workflow", help="Auto-detect and run appropriate workflow"),
     ] = False,
     skip_stage: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         typer.Option("--skip", help="Skip workflow stages"),
     ] = None,
     agent: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--agent", "-a", help="Kira agent to use"),
     ] = None,
     no_memory: Annotated[
@@ -266,8 +273,8 @@ async def _run_one_shot(
     """Execute a one-shot prompt."""
     import time
 
-    from ..core.config import Config
     from ..core.client import KiraClient, KiraNotFoundError
+    from ..core.config import Config
     from ..core.models import resolve_model
     from ..core.session import SessionManager
     from ..logs import RunLogStore
@@ -317,7 +324,9 @@ async def _run_one_shot(
         if model:
             print_info(f"Model: {resolved_model}")
         if inject_personality:
-            print_info(f"Personality: {session.personality.name if session.personality else 'None'}")
+            print_info(
+                f"Personality: {session.personality.name if session.personality else 'None'}"
+            )
 
     # Build full prompt with context (use brief personality for one-shot)
     full_prompt = session_manager.build_prompt(prompt, use_brief_personality=True)
@@ -339,6 +348,7 @@ async def _run_one_shot(
     # Collect output
     from rich.live import Live
     from rich.spinner import Spinner
+
     from .formatter import OutputFormatter
 
     collected_output: list[str] = []
@@ -395,15 +405,14 @@ async def _run_thinking(
     verbose: bool,
 ) -> None:
     """Execute with deep reasoning mode (6-phase thinking)."""
-    from rich.panel import Panel
 
-    from ..core.config import Config
     from ..core.client import KiraClient, KiraNotFoundError
+    from ..core.config import Config
     from ..core.models import resolve_model
     from ..core.session import SessionManager
     from ..memory.store import MemoryStore
     from ..skills.manager import SkillManager
-    from ..thinking import DeepReasoning, ThinkingExecutor
+    from ..thinking import DeepReasoning
 
     # Load configuration
     config = Config.load()
@@ -450,7 +459,9 @@ async def _run_thinking(
 
     # Run deep reasoning (6 phases)
     console.print("\n[bold magenta]Deep Reasoning Mode[/bold magenta]")
-    console.print("[dim]Running 6-phase analysis: Understand → Explore → Analyze → Plan → Critique → Refine[/dim]\n")
+    console.print(
+        "[dim]Running 6-phase analysis: Understand → Explore → Analyze → Plan → Critique → Refine[/dim]\n"
+    )
 
     reasoning = DeepReasoning(client, console, verbose=True)
 
@@ -469,7 +480,7 @@ async def _run_thinking(
     )
 
     # Show summary
-    console.print(f"\n[bold green]Reasoning Complete[/bold green]")
+    console.print("\n[bold green]Reasoning Complete[/bold green]")
     console.print(f"[dim]Phases completed: {len(result.phases_completed)}[/dim]")
     console.print(f"[dim]Thinking time: {result.total_thinking_time:.1f}s[/dim]")
 
@@ -484,9 +495,9 @@ async def _run_thinking(
 
     from rich.live import Live
     from rich.spinner import Spinner
+
     from .formatter import OutputFormatter
 
-    executor = ThinkingExecutor(client, session_manager)
     collected_output: list[str] = []
 
     # Show spinner while collecting response
@@ -528,8 +539,8 @@ async def _run_autonomous(
     from rich.panel import Panel
 
     from ..core.agent import KiraAgent
-    from ..core.config import Config
     from ..core.client import KiraClient, KiraNotFoundError
+    from ..core.config import Config
     from ..core.models import resolve_model
 
     # Load configuration
@@ -590,9 +601,8 @@ async def _run_autonomous(
         raise typer.Exit(1)
 
 
-def _build_execution_prompt(task: str, result: "ThinkingResult") -> str:
+def _build_execution_prompt(task: str, result: ThinkingResult) -> str:
     """Build the execution prompt from thinking result."""
-    from ..thinking import ThinkingResult
 
     parts = []
 
@@ -648,8 +658,8 @@ async def _run_workflow(
     """Execute a multi-stage workflow."""
     from ..agents.registry import AgentRegistry
     from ..agents.spawner import AgentSpawner
-    from ..core.config import Config
     from ..core.client import KiraClient, KiraNotFoundError
+    from ..core.config import Config
     from ..core.models import resolve_model
     from ..core.session import SessionManager
     from ..memory.store import MemoryStore
@@ -811,6 +821,7 @@ def update():
         # Show new version by checking installed package metadata
         try:
             from importlib.metadata import version as get_version
+
             new_version = get_version("kira")
             if new_version != __version__:
                 console.print(f"[green]New version: {new_version}[/green]")
@@ -819,7 +830,7 @@ def update():
         except Exception:
             console.print("[dim]Restart your shell to use the new version[/dim]")
     else:
-        console.print(f"[red]✗[/red] Update failed")
+        console.print("[red]✗[/red] Update failed")
         if result.stderr:
             console.print(f"[dim]{result.stderr.strip()}[/dim]")
         raise typer.Exit(1)

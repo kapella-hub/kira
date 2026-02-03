@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import os
-import re
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from .models import Convention, ProjectContext, TechStack
-
 
 # File patterns for tech detection
 TECH_PATTERNS: dict[str, dict[str, list[str]]] = {
@@ -61,14 +59,40 @@ TECH_PATTERNS: dict[str, dict[str, list[str]]] = {
 
 # Ignore patterns
 IGNORE_DIRS = {
-    ".git", ".svn", ".hg", "node_modules", "__pycache__", ".venv", "venv",
-    "env", ".env", "dist", "build", ".next", ".nuxt", "target", "vendor",
-    ".idea", ".vscode", ".kira", "coverage", ".pytest_cache", ".mypy_cache",
+    ".git",
+    ".svn",
+    ".hg",
+    "node_modules",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "env",
+    ".env",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    "target",
+    "vendor",
+    ".idea",
+    ".vscode",
+    ".kira",
+    "coverage",
+    ".pytest_cache",
+    ".mypy_cache",
 }
 
 IGNORE_FILES = {
-    ".DS_Store", "Thumbs.db", "*.pyc", "*.pyo", "*.so", "*.dylib",
-    "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "poetry.lock",
+    ".DS_Store",
+    "Thumbs.db",
+    "*.pyc",
+    "*.pyo",
+    "*.so",
+    "*.dylib",
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "poetry.lock",
 }
 
 
@@ -232,9 +256,17 @@ class ProjectAnalyzer:
 
         # Find entry points
         entry_point_patterns = [
-            "main.py", "app.py", "index.py", "__main__.py",
-            "index.js", "index.ts", "main.js", "main.ts",
-            "src/main.*", "src/index.*", "src/app.*",
+            "main.py",
+            "app.py",
+            "index.py",
+            "__main__.py",
+            "index.js",
+            "index.ts",
+            "main.js",
+            "main.ts",
+            "src/main.*",
+            "src/index.*",
+            "src/app.*",
         ]
         for pattern in entry_point_patterns:
             matches = list(self.project_dir.glob(pattern))
@@ -250,8 +282,15 @@ class ProjectAnalyzer:
 
         # Find config files
         config_patterns = [
-            "*.yaml", "*.yml", "*.json", "*.toml", "*.ini", "*.cfg",
-            ".env*", "Makefile", "Dockerfile",
+            "*.yaml",
+            "*.yml",
+            "*.json",
+            "*.toml",
+            "*.ini",
+            "*.cfg",
+            ".env*",
+            "Makefile",
+            "Dockerfile",
         ]
         for pattern in config_patterns:
             for match in self.project_dir.glob(pattern):
@@ -265,8 +304,12 @@ class ProjectAnalyzer:
         conventions = []
 
         # Check for linting configs
-        if (self.project_dir / ".eslintrc.js").exists() or (self.project_dir / ".eslintrc.json").exists():
-            conventions.append(Convention("linting", "ESLint is configured for JavaScript/TypeScript"))
+        if (self.project_dir / ".eslintrc.js").exists() or (
+            self.project_dir / ".eslintrc.json"
+        ).exists():
+            conventions.append(
+                Convention("linting", "ESLint is configured for JavaScript/TypeScript")
+            )
 
         if (self.project_dir / "pyproject.toml").exists():
             content = (self.project_dir / "pyproject.toml").read_text(errors="ignore")
@@ -277,8 +320,12 @@ class ProjectAnalyzer:
             if "mypy" in content:
                 conventions.append(Convention("typing", "MyPy is configured for type checking"))
 
-        if (self.project_dir / ".prettierrc").exists() or (self.project_dir / ".prettierrc.json").exists():
-            conventions.append(Convention("formatting", "Prettier is configured for code formatting"))
+        if (self.project_dir / ".prettierrc").exists() or (
+            self.project_dir / ".prettierrc.json"
+        ).exists():
+            conventions.append(
+                Convention("formatting", "Prettier is configured for code formatting")
+            )
 
         # Check test structure
         if (self.project_dir / "tests").is_dir():

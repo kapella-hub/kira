@@ -1,8 +1,8 @@
 """Workflow orchestration for multi-stage tasks."""
 
-from .models import Stage, StageStatus, StageResult, Workflow, WorkflowExecution
 from .coding import CODING_WORKFLOW
 from .detector import CodingTaskDetector
+from .models import Stage, StageResult, StageStatus, Workflow, WorkflowExecution
 from .orchestrator import WorkflowOrchestrator
 
 __all__ = [

@@ -17,7 +17,6 @@ from .models import (
     TechStack,
 )
 
-
 # Default context file paths
 CONTEXT_FILE = ".kira/context.md"
 CHANGELOG_FILE = ".kira/changelog.md"
@@ -232,9 +231,14 @@ class ContextManager:
                 # Handle bullet point format
                 item = line[2:].strip()
                 # Try to categorize
-                if any(x in item.lower() for x in ["python", "javascript", "typescript", "java", "go", "rust"]):
+                if any(
+                    x in item.lower()
+                    for x in ["python", "javascript", "typescript", "java", "go", "rust"]
+                ):
                     stack.languages.append(item)
-                elif any(x in item.lower() for x in ["react", "vue", "fastapi", "django", "spring"]):
+                elif any(
+                    x in item.lower() for x in ["react", "vue", "fastapi", "django", "spring"]
+                ):
                     stack.frameworks.append(item)
                 elif any(x in item.lower() for x in ["postgres", "mysql", "mongodb", "redis"]):
                     stack.databases.append(item)
@@ -263,15 +267,19 @@ class ContextManager:
                 line = line[2:]
                 # Try to extract category
                 if match := re.match(r"\*\*(.+?):\*\*\s*(.+)", line):
-                    conventions.append(Convention(
-                        category=match.group(1),
-                        rule=match.group(2),
-                    ))
+                    conventions.append(
+                        Convention(
+                            category=match.group(1),
+                            rule=match.group(2),
+                        )
+                    )
                 else:
-                    conventions.append(Convention(
-                        category="general",
-                        rule=line,
-                    ))
+                    conventions.append(
+                        Convention(
+                            category="general",
+                            rule=line,
+                        )
+                    )
 
         return conventions
 
@@ -292,7 +300,10 @@ class ContextManager:
 
                 # Parse header
                 header = line[4:]
-                if match := re.match(r"(\d{4}-\d{2}-\d{2})\s*(?:\d{2}:\d{2})?\s*-\s*(.+?)(?:\s*\[(\w+)\])?\s*(?:\(@(\w+)\))?$", header):
+                if match := re.match(
+                    r"(\d{4}-\d{2}-\d{2})\s*(?:\d{2}:\d{2})?\s*-\s*(.+?)(?:\s*\[(\w+)\])?\s*(?:\(@(\w+)\))?$",
+                    header,
+                ):
                     current_entry["date"] = match.group(1)
                     current_entry["summary"] = match.group(2).strip()
                     current_entry["type"] = match.group(3) or "feature"
@@ -349,10 +360,12 @@ class ContextManager:
                     severity = match.group(1).lower()
                     line = match.group(2)
 
-                issues.append(KnownIssue(
-                    description=line,
-                    severity=severity,
-                ))
+                issues.append(
+                    KnownIssue(
+                        description=line,
+                        severity=severity,
+                    )
+                )
 
         return issues
 
@@ -377,7 +390,9 @@ class ContextManager:
         name = ctx.name or self.project_dir.name
         lines.append(f"# Project Context - {name}")
         lines.append("")
-        lines.append(f"*Last updated: {ctx.last_updated.strftime('%Y-%m-%d %H:%M') if ctx.last_updated else 'never'}*")
+        lines.append(
+            f"*Last updated: {ctx.last_updated.strftime('%Y-%m-%d %H:%M') if ctx.last_updated else 'never'}*"
+        )
         if ctx.last_updated_by:
             lines.append(f"*Updated by: @{ctx.last_updated_by}*")
         lines.append("")
@@ -385,7 +400,9 @@ class ContextManager:
         # Overview
         lines.append("## Overview")
         lines.append("")
-        lines.append(ctx.overview or "*No overview yet. Run `/context refresh` to analyze the project.*")
+        lines.append(
+            ctx.overview or "*No overview yet. Run `/context refresh` to analyze the project.*"
+        )
         lines.append("")
 
         # Architecture

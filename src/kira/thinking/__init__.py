@@ -1,22 +1,22 @@
 """Thinking mode - multi-phase reasoning with self-critique."""
 
+from .executor import ThinkingExecutor
 from .models import (
-    Complexity,
-    ThinkingPlan,
-    ThinkingPhase,
-    ThinkingResult,
-    TaskUnderstanding,
-    Exploration,
     Analysis,
+    Approach,
+    Complexity,
+    Critique,
     ExecutionPlan,
     ExecutionStep,
-    Critique,
+    Exploration,
     RefinedPlan,
-    Approach,
+    TaskUnderstanding,
+    ThinkingPhase,
+    ThinkingPlan,
+    ThinkingResult,
     Verification,
 )
 from .planner import ThinkingPlanner
-from .executor import ThinkingExecutor
 from .reasoning import DeepReasoning
 
 __all__ = [

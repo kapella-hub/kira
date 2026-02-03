@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 
 from .models import ExtractedMemory, MemoryType
 
-
 # Patterns for extracting different types of information
 EXTRACTION_PATTERNS: dict[str, dict] = {
     # Decisions and choices made
@@ -26,7 +25,6 @@ EXTRACTION_PATTERNS: dict[str, dict] = {
         "importance": 7,
         "confidence": 0.8,
     },
-
     # Facts and definitions
     "fact": {
         "patterns": [
@@ -37,7 +35,6 @@ EXTRACTION_PATTERNS: dict[str, dict] = {
         "importance": 5,
         "confidence": 0.5,  # Lower confidence, needs validation
     },
-
     # Important notes and reminders
     "note": {
         "patterns": [
@@ -48,7 +45,6 @@ EXTRACTION_PATTERNS: dict[str, dict] = {
         "importance": 7,
         "confidence": 0.9,
     },
-
     # Patterns and conventions
     "pattern": {
         "patterns": [
@@ -60,7 +56,6 @@ EXTRACTION_PATTERNS: dict[str, dict] = {
         "importance": 6,
         "confidence": 0.8,
     },
-
     # Solutions to problems
     "solution": {
         "patterns": [
@@ -72,7 +67,6 @@ EXTRACTION_PATTERNS: dict[str, dict] = {
         "importance": 8,
         "confidence": 0.85,
     },
-
     # Configuration and setup
     "config": {
         "patterns": [
@@ -83,7 +77,6 @@ EXTRACTION_PATTERNS: dict[str, dict] = {
         "importance": 6,
         "confidence": 0.7,
     },
-
     # Error patterns
     "error": {
         "patterns": [
@@ -139,8 +132,7 @@ class MemoryExtractor:
         self._compiled_patterns: dict[str, list[re.Pattern]] = {}
         for category, config in EXTRACTION_PATTERNS.items():
             self._compiled_patterns[category] = [
-                re.compile(p, re.IGNORECASE | re.MULTILINE)
-                for p in config["patterns"]
+                re.compile(p, re.IGNORECASE | re.MULTILINE) for p in config["patterns"]
             ]
 
     def extract(
@@ -217,7 +209,7 @@ class MemoryExtractor:
         content = content.strip(".,;:!?-")
         # Truncate if too long
         if len(content) > self.max_content_length:
-            content = content[:self.max_content_length].rsplit(" ", 1)[0] + "..."
+            content = content[: self.max_content_length].rsplit(" ", 1)[0] + "..."
         return content
 
     def _is_valid_content(self, content: str) -> bool:
@@ -275,7 +267,7 @@ class MemoryExtractor:
         for memory in memories:
             # Create normalized hash for comparison
             normalized = memory.content.lower()
-            normalized = re.sub(r'\s+', ' ', normalized)
+            normalized = re.sub(r"\s+", " ", normalized)
             content_hash = hashlib.md5(normalized.encode()).hexdigest()
 
             if content_hash not in seen_hashes:

@@ -1,10 +1,15 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # Kira Installer for macOS/Linux
 # Usage: curl -sSL https://raw.githubusercontent.com/kapella-hub/kira/main/install.sh | bash
+#
+# Options:
+#   KIRA_VERSION=v0.2.0  Install specific version
+#   KIRA_NO_MODIFY_PATH=1  Don't modify shell profile
 
 REPO="https://github.com/kapella-hub/kira.git"
+VERSION="${KIRA_VERSION:-}"  # Empty = latest
 MIN_PYTHON_MAJOR=3
 MIN_PYTHON_MINOR=12
 
@@ -94,8 +99,20 @@ check_kiro() {
 install_kira() {
     info "Installing kira..."
 
+    # Build install URL with optional version
+    if [ -n "$VERSION" ]; then
+        INSTALL_URL="git+${REPO}@${VERSION}"
+        info "Installing version: ${VERSION}"
+    else
+        INSTALL_URL="git+${REPO}"
+    fi
+
     # Install with pip --user
-    $PYTHON_CMD -m pip install --user --upgrade "git+${REPO}" --quiet
+    if ! $PYTHON_CMD -m pip install --user --upgrade "$INSTALL_URL" --quiet 2>&1; then
+        error "Installation failed"
+        echo "Try running manually: $PYTHON_CMD -m pip install --user git+${REPO}"
+        exit 1
+    fi
 
     success "kira installed"
 }
@@ -112,8 +129,16 @@ setup_path() {
         return
     fi
 
+    # Skip PATH modification if requested
+    if [ "${KIRA_NO_MODIFY_PATH:-}" = "1" ]; then
+        warn "Skipping PATH modification (KIRA_NO_MODIFY_PATH=1)"
+        echo "Add this to your shell profile: export PATH=\"\$HOME/.local/bin:\$PATH\""
+        export PATH="$USER_BIN:$PATH"
+        return
+    fi
+
     # Detect shell and profile file
-    SHELL_NAME=$(basename "$SHELL")
+    SHELL_NAME=$(basename "${SHELL:-/bin/bash}")
     case "$SHELL_NAME" in
         zsh)
             PROFILE="$HOME/.zshrc"
@@ -124,6 +149,9 @@ setup_path() {
             else
                 PROFILE="$HOME/.bashrc"
             fi
+            ;;
+        fish)
+            PROFILE="$HOME/.config/fish/config.fish"
             ;;
         *)
             PROFILE="$HOME/.profile"

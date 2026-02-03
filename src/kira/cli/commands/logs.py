@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from rich.panel import Panel
@@ -24,8 +24,10 @@ def get_store() -> RunLogStore:
 @app.command("list")
 def list_runs(
     mode: Annotated[
-        Optional[str],
-        typer.Option("--mode", "-m", help="Filter by mode (repl, chat, thinking, autonomous, workflow)"),
+        str | None,
+        typer.Option(
+            "--mode", "-m", help="Filter by mode (repl, chat, thinking, autonomous, workflow)"
+        ),
     ] = None,
     limit: Annotated[
         int,
@@ -169,7 +171,7 @@ def search_runs(
         )
 
     console.print(table)
-    print_info(f"Use 'kira logs show <id>' to view full run")
+    print_info("Use 'kira logs show <id>' to view full run")
 
 
 @app.command("stats")
@@ -183,24 +185,24 @@ def log_stats():
     console.print(f"[dim]Total messages:[/dim] {stats['total_entries']}")
 
     # Total duration
-    total_mins = int(stats['total_duration'] // 60)
-    total_secs = int(stats['total_duration'] % 60)
+    total_mins = int(stats["total_duration"] // 60)
+    total_secs = int(stats["total_duration"] % 60)
     console.print(f"[dim]Total duration:[/dim] {total_mins}m {total_secs}s")
 
-    if stats['by_mode']:
+    if stats["by_mode"]:
         console.print("\n[dim]By mode:[/dim]")
-        for mode, count in stats['by_mode'].items():
+        for mode, count in stats["by_mode"].items():
             console.print(f"  {mode}: {count}")
 
 
 @app.command("clear")
 def clear_logs(
     days: Annotated[
-        Optional[int],
+        int | None,
         typer.Option("--older-than", "-d", help="Clear runs older than N days"),
     ] = None,
     mode: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--mode", "-m", help="Only clear runs of this mode"),
     ] = None,
     force: Annotated[

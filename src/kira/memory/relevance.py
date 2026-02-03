@@ -16,28 +16,106 @@ from datetime import datetime
 
 from .models import Memory, MemoryType
 
-
 # Stop words to ignore in keyword matching
 STOP_WORDS = {
-    "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
-    "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
-    "being", "have", "has", "had", "do", "does", "did", "will", "would",
-    "could", "should", "may", "might", "must", "shall", "can", "need",
-    "this", "that", "these", "those", "i", "you", "he", "she", "it", "we",
-    "they", "what", "which", "who", "whom", "how", "when", "where", "why",
+    "a",
+    "an",
+    "the",
+    "and",
+    "or",
+    "but",
+    "in",
+    "on",
+    "at",
+    "to",
+    "for",
+    "of",
+    "with",
+    "by",
+    "from",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "could",
+    "should",
+    "may",
+    "might",
+    "must",
+    "shall",
+    "can",
+    "need",
+    "this",
+    "that",
+    "these",
+    "those",
+    "i",
+    "you",
+    "he",
+    "she",
+    "it",
+    "we",
+    "they",
+    "what",
+    "which",
+    "who",
+    "whom",
+    "how",
+    "when",
+    "where",
+    "why",
 }
 
 # Keywords that suggest procedural memory
 PROCEDURAL_KEYWORDS = {
-    "how", "implement", "create", "build", "setup", "configure", "install",
-    "deploy", "run", "execute", "fix", "solve", "handle", "process",
-    "step", "guide", "tutorial", "pattern", "approach", "method",
+    "how",
+    "implement",
+    "create",
+    "build",
+    "setup",
+    "configure",
+    "install",
+    "deploy",
+    "run",
+    "execute",
+    "fix",
+    "solve",
+    "handle",
+    "process",
+    "step",
+    "guide",
+    "tutorial",
+    "pattern",
+    "approach",
+    "method",
 }
 
 # Keywords that suggest episodic memory
 EPISODIC_KEYWORDS = {
-    "decided", "chose", "discussed", "agreed", "meeting", "conversation",
-    "yesterday", "today", "last", "previous", "history", "event", "happened",
+    "decided",
+    "chose",
+    "discussed",
+    "agreed",
+    "meeting",
+    "conversation",
+    "yesterday",
+    "today",
+    "last",
+    "previous",
+    "history",
+    "event",
+    "happened",
 }
 
 
@@ -80,10 +158,10 @@ class RelevanceScorer:
         type_score = self._type_match(memory, task)
 
         total = (
-            keyword_score * self.keyword_weight +
-            recency_score * self.recency_weight +
-            frequency_score * self.frequency_weight +
-            type_score * self.type_weight
+            keyword_score * self.keyword_weight
+            + recency_score * self.recency_weight
+            + frequency_score * self.frequency_weight
+            + type_score * self.type_weight
         )
 
         return min(1.0, max(0.0, total))
@@ -116,7 +194,7 @@ class RelevanceScorer:
     def _tokenize(self, text: str) -> list[str]:
         """Tokenize text into words, removing stop words."""
         # Convert to lowercase and extract words
-        words = re.findall(r'\b[a-z]+\b', text.lower())
+        words = re.findall(r"\b[a-z]+\b", text.lower())
         # Remove stop words and short words
         return [w for w in words if w not in STOP_WORDS and len(w) > 2]
 
@@ -157,7 +235,7 @@ class RelevanceScorer:
         decay_rate = 0.95
         weeks = days_ago / 7
 
-        return decay_rate ** weeks
+        return decay_rate**weeks
 
     def _frequency_factor(self, memory: Memory) -> float:
         """Calculate frequency score based on access count."""
@@ -169,7 +247,6 @@ class RelevanceScorer:
 
     def _type_match(self, memory: Memory, task: str) -> float:
         """Score based on memory type appropriateness for the task."""
-        task_lower = task.lower()
         task_tokens = set(self._tokenize(task))
 
         # Detect task type

@@ -54,19 +54,21 @@ class SmartContextLoader:
     """Automatically finds relevant files based on task description."""
 
     # Patterns to extract from prompts
-    FILE_PATTERN = re.compile(r'[\w\-]+\.(?:py|js|ts|jsx|tsx|go|rs|java|rb|php|vue|svelte|css|scss|html|json|yaml|yml|toml|md)')
-    FUNC_PATTERN = re.compile(r'\b(?:function|def|fn|func)\s+(\w+)|(\w+)\s*\(')
-    CLASS_PATTERN = re.compile(r'\b(?:class|struct|interface|type)\s+(\w+)')
-    IMPORT_PATTERN = re.compile(r'(?:from|import)\s+([\w\.]+)')
+    FILE_PATTERN = re.compile(
+        r"[\w\-]+\.(?:py|js|ts|jsx|tsx|go|rs|java|rb|php|vue|svelte|css|scss|html|json|yaml|yml|toml|md)"
+    )
+    FUNC_PATTERN = re.compile(r"\b(?:function|def|fn|func)\s+(\w+)|(\w+)\s*\(")
+    CLASS_PATTERN = re.compile(r"\b(?:class|struct|interface|type)\s+(\w+)")
+    IMPORT_PATTERN = re.compile(r"(?:from|import)\s+([\w\.]+)")
 
     # Common code keywords that suggest file types
     KEYWORD_MAP = {
-        'auth': ['auth', 'login', 'user', 'session', 'token'],
-        'api': ['api', 'endpoint', 'route', 'handler', 'controller'],
-        'database': ['db', 'database', 'model', 'schema', 'migration'],
-        'test': ['test', 'spec', 'mock'],
-        'config': ['config', 'settings', 'env'],
-        'ui': ['component', 'view', 'page', 'template'],
+        "auth": ["auth", "login", "user", "session", "token"],
+        "api": ["api", "endpoint", "route", "handler", "controller"],
+        "database": ["db", "database", "model", "schema", "migration"],
+        "test": ["test", "spec", "mock"],
+        "config": ["config", "settings", "env"],
+        "ui": ["component", "view", "page", "template"],
     }
 
     def __init__(self, project_dir: Path | None = None):
@@ -93,56 +95,64 @@ class SmartContextLoader:
         for ref in file_refs:
             matches = self._find_files(ref)
             for path in matches[:2]:  # Limit per reference
-                context.matches.append(ContextMatch(
-                    path=path,
-                    relevance=1.0,
-                    match_reason=f"directly mentioned",
-                    preview=self._get_preview(path),
-                ))
+                context.matches.append(
+                    ContextMatch(
+                        path=path,
+                        relevance=1.0,
+                        match_reason="directly mentioned",
+                        preview=self._get_preview(path),
+                    )
+                )
                 context.keywords_found.append(ref)
 
         # 2. Function/class names
         func_matches = self.FUNC_PATTERN.findall(prompt)
         funcs = [m[0] or m[1] for m in func_matches if m[0] or m[1]]
         for func in funcs:
-            if len(func) < 3 or func in ('the', 'and', 'for', 'def', 'class'):
+            if len(func) < 3 or func in ("the", "and", "for", "def", "class"):
                 continue
             matches = self._grep_files(func)
             for path in matches[:2]:
                 if not self._already_matched(context, path):
-                    context.matches.append(ContextMatch(
-                        path=path,
-                        relevance=0.8,
-                        match_reason=f"contains '{func}'",
-                        preview=self._get_preview(path, func),
-                    ))
+                    context.matches.append(
+                        ContextMatch(
+                            path=path,
+                            relevance=0.8,
+                            match_reason=f"contains '{func}'",
+                            preview=self._get_preview(path, func),
+                        )
+                    )
 
         class_matches = self.CLASS_PATTERN.findall(prompt)
         for cls in class_matches:
             matches = self._grep_files(f"class {cls}")
             for path in matches[:2]:
                 if not self._already_matched(context, path):
-                    context.matches.append(ContextMatch(
-                        path=path,
-                        relevance=0.9,
-                        match_reason=f"defines '{cls}'",
-                        preview=self._get_preview(path, cls),
-                    ))
+                    context.matches.append(
+                        ContextMatch(
+                            path=path,
+                            relevance=0.9,
+                            match_reason=f"defines '{cls}'",
+                            preview=self._get_preview(path, cls),
+                        )
+                    )
 
         # 3. Import paths
         import_matches = self.IMPORT_PATTERN.findall(prompt)
         for imp in import_matches:
             # Convert import to file path
-            imp_path = imp.replace('.', '/') + '.py'
+            imp_path = imp.replace(".", "/") + ".py"
             matches = self._find_files(imp_path)
             for path in matches[:1]:
                 if not self._already_matched(context, path):
-                    context.matches.append(ContextMatch(
-                        path=path,
-                        relevance=0.85,
-                        match_reason=f"import reference",
-                        preview=self._get_preview(path),
-                    ))
+                    context.matches.append(
+                        ContextMatch(
+                            path=path,
+                            relevance=0.85,
+                            match_reason="import reference",
+                            preview=self._get_preview(path),
+                        )
+                    )
 
         # 4. Keyword-based discovery
         for category, keywords in self.KEYWORD_MAP.items():
@@ -154,12 +164,14 @@ class SmartContextLoader:
                         matches = self._find_files(f"*{kw}*")
                         for path in matches[:2]:
                             if not self._already_matched(context, path):
-                                context.matches.append(ContextMatch(
-                                    path=path,
-                                    relevance=0.6,
-                                    match_reason=f"matches '{category}' context",
-                                    preview=self._get_preview(path),
-                                ))
+                                context.matches.append(
+                                    ContextMatch(
+                                        path=path,
+                                        relevance=0.6,
+                                        match_reason=f"matches '{category}' context",
+                                        preview=self._get_preview(path),
+                                    )
+                                )
                         break
 
         # Limit total matches
@@ -171,7 +183,7 @@ class SmartContextLoader:
         """Find files matching pattern using glob."""
         try:
             # Try exact match first
-            if '*' not in pattern:
+            if "*" not in pattern:
                 exact = list(self.project_dir.rglob(pattern))
                 if exact:
                     return [p for p in exact if self._is_valid_file(p)]
@@ -187,14 +199,26 @@ class SmartContextLoader:
         try:
             # Try ripgrep first (faster)
             result = subprocess.run(
-                ['rg', '-l', '--type-not', 'binary', '-g', '!node_modules', '-g', '!.git', '-g', '!*.lock', pattern],
+                [
+                    "rg",
+                    "-l",
+                    "--type-not",
+                    "binary",
+                    "-g",
+                    "!node_modules",
+                    "-g",
+                    "!.git",
+                    "-g",
+                    "!*.lock",
+                    pattern,
+                ],
                 cwd=self.project_dir,
                 capture_output=True,
                 text=True,
                 timeout=5,
             )
             if result.returncode == 0:
-                paths = [self.project_dir / p for p in result.stdout.strip().split('\n') if p]
+                paths = [self.project_dir / p for p in result.stdout.strip().split("\n") if p]
                 return [p for p in paths if self._is_valid_file(p)][:10]
         except FileNotFoundError:
             pass
@@ -204,14 +228,18 @@ class SmartContextLoader:
         # Fallback to grep
         try:
             result = subprocess.run(
-                ['grep', '-rl', '--include=*.py', '--include=*.js', '--include=*.ts', pattern, '.'],
+                ["grep", "-rl", "--include=*.py", "--include=*.js", "--include=*.ts", pattern, "."],
                 cwd=self.project_dir,
                 capture_output=True,
                 text=True,
                 timeout=10,
             )
             if result.returncode == 0:
-                paths = [self.project_dir / p.lstrip('./') for p in result.stdout.strip().split('\n') if p]
+                paths = [
+                    self.project_dir / p.lstrip("./")
+                    for p in result.stdout.strip().split("\n")
+                    if p
+                ]
                 return [p for p in paths if self._is_valid_file(p)][:10]
         except Exception:
             pass
@@ -224,20 +252,41 @@ class SmartContextLoader:
             return False
 
         # Skip common non-source paths
-        skip_patterns = ['node_modules', '.git', '__pycache__', '.venv', 'venv', 'dist', 'build', '.egg']
+        skip_patterns = [
+            "node_modules",
+            ".git",
+            "__pycache__",
+            ".venv",
+            "venv",
+            "dist",
+            "build",
+            ".egg",
+        ]
         path_str = str(path)
         if any(skip in path_str for skip in skip_patterns):
             return False
 
         # Check extension
-        valid_extensions = {'.py', '.js', '.ts', '.jsx', '.tsx', '.go', '.rs', '.java', '.rb', '.vue', '.svelte'}
+        valid_extensions = {
+            ".py",
+            ".js",
+            ".ts",
+            ".jsx",
+            ".tsx",
+            ".go",
+            ".rs",
+            ".java",
+            ".rb",
+            ".vue",
+            ".svelte",
+        }
         return path.suffix in valid_extensions
 
     def _get_preview(self, path: Path, highlight: str | None = None, max_lines: int = 10) -> str:
         """Get a preview of the file content."""
         try:
             content = path.read_text()
-            lines = content.split('\n')
+            lines = content.split("\n")
 
             if highlight:
                 # Find the section containing the highlight
@@ -245,10 +294,10 @@ class SmartContextLoader:
                     if highlight.lower() in line.lower():
                         start = max(0, i - 2)
                         end = min(len(lines), i + max_lines - 2)
-                        return '\n'.join(lines[start:end])
+                        return "\n".join(lines[start:end])
 
             # Return first N lines
-            return '\n'.join(lines[:max_lines])
+            return "\n".join(lines[:max_lines])
         except Exception:
             return ""
 

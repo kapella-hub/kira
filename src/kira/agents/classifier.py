@@ -110,7 +110,7 @@ Output format:
 Task to classify:
 """
 
-    def __init__(self, kiro_client: "KiraClient | None" = None):
+    def __init__(self, kiro_client: KiraClient | None = None):
         self.client = kiro_client
 
     def quick_classify(self, prompt: str) -> tuple[TaskType | None, float]:

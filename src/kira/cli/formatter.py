@@ -10,7 +10,6 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.syntax import Syntax
-from rich.text import Text
 
 if TYPE_CHECKING:
     pass
@@ -193,7 +192,7 @@ class OutputFormatter:
 
         def extract_json_object(text: str, start: int) -> tuple[str, int] | None:
             """Extract a complete JSON object handling nested braces."""
-            if start >= len(text) or text[start] != '{':
+            if start >= len(text) or text[start] != "{":
                 return None
             depth = 0
             in_string = False
@@ -203,7 +202,7 @@ class OutputFormatter:
                 if escape:
                     escape = False
                     continue
-                if c == '\\' and in_string:
+                if c == "\\" and in_string:
                     escape = True
                     continue
                 if c == '"' and not escape:
@@ -211,12 +210,12 @@ class OutputFormatter:
                     continue
                 if in_string:
                     continue
-                if c == '{':
+                if c == "{":
                     depth += 1
-                elif c == '}':
+                elif c == "}":
                     depth -= 1
                     if depth == 0:
-                        return text[start:i+1], i+1
+                        return text[start : i + 1], i + 1
             return None
 
         def format_json(code: str) -> str:
@@ -229,11 +228,9 @@ class OutputFormatter:
 
         # Pattern: language name followed by { on same line
         # e.g., "json { "key": "value" }"
-        result = []
-        i = 0
-        inline_lang = re.compile(r'\b(json|javascript|python|typescript)\s*\{', re.IGNORECASE)
+        inline_lang = re.compile(r"\b(json|javascript|python|typescript)\s*\{", re.IGNORECASE)
 
-        lines = text.split('\n')
+        lines = text.split("\n")
         new_lines = []
 
         for line in lines:
@@ -245,7 +242,7 @@ class OutputFormatter:
                 extracted = extract_json_object(line, json_start)
                 if extracted:
                     code, end_pos = extracted
-                    before = line[:match.start()]
+                    before = line[: match.start()]
                     after = line[end_pos:]
                     formatted = format_json(code)
                     new_lines.append(before.rstrip())
@@ -257,14 +254,14 @@ class OutputFormatter:
                     continue
 
             # Check for "Request: {" or "Response 201: {" pattern
-            req_match = re.search(r'(Request|Response(?:\s+\d+)?)\s*:\s*\{', line, re.IGNORECASE)
+            req_match = re.search(r"(Request|Response(?:\s+\d+)?)\s*:\s*\{", line, re.IGNORECASE)
             if req_match:
                 label = req_match.group(1)
                 json_start = req_match.end() - 1
                 extracted = extract_json_object(line, json_start)
                 if extracted:
                     code, end_pos = extracted
-                    before = line[:req_match.start()]
+                    before = line[: req_match.start()]
                     after = line[end_pos:]
                     formatted = format_json(code)
                     if before.strip():
@@ -279,7 +276,7 @@ class OutputFormatter:
 
             new_lines.append(line)
 
-        return '\n'.join(new_lines)
+        return "\n".join(new_lines)
 
     def _split_content(self, text: str) -> list[dict]:
         """Split text into code blocks and markdown sections.
@@ -348,17 +345,46 @@ class OutputFormatter:
         Returns:
             Text with unfenced code blocks converted to fenced.
         """
-        lines = text.split('\n')
+        lines = text.split("\n")
         result = []
         i = 0
 
         # Known language keywords
         languages = {
-            'typescript', 'javascript', 'python', 'java', 'go', 'rust',
-            'ruby', 'sql', 'bash', 'shell', 'json', 'yaml', 'html', 'css',
-            'c', 'cpp', 'csharp', 'php', 'swift', 'kotlin', 'scala',
-            'mermaid', 'markdown', 'md', 'xml', 'toml', 'ini', 'dockerfile',
-            'makefile', 'cmake', 'gradle', 'graphql', 'proto', 'protobuf',
+            "typescript",
+            "javascript",
+            "python",
+            "java",
+            "go",
+            "rust",
+            "ruby",
+            "sql",
+            "bash",
+            "shell",
+            "json",
+            "yaml",
+            "html",
+            "css",
+            "c",
+            "cpp",
+            "csharp",
+            "php",
+            "swift",
+            "kotlin",
+            "scala",
+            "mermaid",
+            "markdown",
+            "md",
+            "xml",
+            "toml",
+            "ini",
+            "dockerfile",
+            "makefile",
+            "cmake",
+            "gradle",
+            "graphql",
+            "proto",
+            "protobuf",
         }
 
         def looks_like_code(line: str, lang: str) -> bool:
@@ -368,61 +394,61 @@ class OutputFormatter:
                 return False
 
             # Indented lines are usually code
-            if line.startswith('    ') or line.startswith('\t'):
+            if line.startswith("    ") or line.startswith("\t"):
                 return True
 
             # Definitely code patterns
             code_patterns = [
-                r'^#!',  # Shebang
-                r'^(interface|class|function|def|const|let|var|import|export|from|type|enum)\b',
-                r'^(public|private|protected|static|async|await)\b',
-                r'^\s*[{}\[\]()]',
-                r'^[a-zA-Z_]\w*\s*[(={:]',
-                r'^\s*//|^\s*/\*',  # C-style comments
-                r'^#\s*\w',  # Shell/Python comments (# followed by word char)
-                r'=>|->|\|\||&&',
-                r'^\s*@\w+',  # Decorators
-                r'^\s*self\.',  # Python self
-                r'^\s*return\b',
-                r'^\s*(if|for|while|try|except|with)\b.*:',
+                r"^#!",  # Shebang
+                r"^(interface|class|function|def|const|let|var|import|export|from|type|enum)\b",
+                r"^(public|private|protected|static|async|await)\b",
+                r"^\s*[{}\[\]()]",
+                r"^[a-zA-Z_]\w*\s*[(={:]",
+                r"^\s*//|^\s*/\*",  # C-style comments
+                r"^#\s*\w",  # Shell/Python comments (# followed by word char)
+                r"=>|->|\|\||&&",
+                r"^\s*@\w+",  # Decorators
+                r"^\s*self\.",  # Python self
+                r"^\s*return\b",
+                r"^\s*(if|for|while|try|except|with)\b.*:",
                 # Shell patterns
-                r'^[A-Z_][A-Z0-9_]*=',  # Shell variable assignment (THRESHOLD=90)
-                r'^\s*(echo|printf|read|exit|source|chmod|chown|mkdir|rm|cp|mv|cat|grep|awk|sed|sudo)\b',
-                r'^\s*(fi|done|esac|then|else|elif|do)\b',  # Shell keywords
-                r'^\s*\[\[?\s',  # Shell test brackets
-                r'^\$\(',  # Command substitution
-                r'^\s*(while|for|if|until)\s+.*;\s*do',  # Shell loops: while true; do
-                r'^\s*(if|elif)\s+\[',  # Shell conditionals: if [ ... ]
-                r'sleep\s+\d',  # sleep command
+                r"^[A-Z_][A-Z0-9_]*=",  # Shell variable assignment (THRESHOLD=90)
+                r"^\s*(echo|printf|read|exit|source|chmod|chown|mkdir|rm|cp|mv|cat|grep|awk|sed|sudo)\b",
+                r"^\s*(fi|done|esac|then|else|elif|do)\b",  # Shell keywords
+                r"^\s*\[\[?\s",  # Shell test brackets
+                r"^\$\(",  # Command substitution
+                r"^\s*(while|for|if|until)\s+.*;\s*do",  # Shell loops: while true; do
+                r"^\s*(if|elif)\s+\[",  # Shell conditionals: if [ ... ]
+                r"sleep\s+\d",  # sleep command
                 # Mermaid patterns
-                r'^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey)\b',
-                r'^\s*[A-Z]\[',  # Mermaid node: A[text]
-                r'^\s*[A-Z]\s*-->',  # Mermaid arrow: A --> B
-                r'^\s*participant\b',  # Mermaid sequence diagram
+                r"^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey)\b",
+                r"^\s*[A-Z]\[",  # Mermaid node: A[text]
+                r"^\s*[A-Z]\s*-->",  # Mermaid arrow: A --> B
+                r"^\s*participant\b",  # Mermaid sequence diagram
                 # SQL patterns
-                r'^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|FROM|WHERE|JOIN|LEFT|RIGHT|INNER|OUTER|GROUP|ORDER|HAVING|LIMIT|OFFSET|UNION|SET|VALUES)\b',
+                r"^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|FROM|WHERE|JOIN|LEFT|RIGHT|INNER|OUTER|GROUP|ORDER|HAVING|LIMIT|OFFSET|UNION|SET|VALUES)\b",
                 # GraphQL patterns
-                r'^\s*(query|mutation|subscription|type|input|enum|interface|fragment)\b',
+                r"^\s*(query|mutation|subscription|type|input|enum|interface|fragment)\b",
                 # Go patterns
-                r'^package\s+\w+',
+                r"^package\s+\w+",
                 r'^import\s+[(""]',
-                r'^func\s+\w*\s*\(',
-                r'^(var|const)\s+\w+',
-                r'^\s*defer\s+',
+                r"^func\s+\w*\s*\(",
+                r"^(var|const)\s+\w+",
+                r"^\s*defer\s+",
                 # Rust patterns
-                r'^(fn|let|mut|pub|mod|use|impl|struct|trait|enum|match)\s+',
-                r'^\s*println!\s*\(',
-                r'^#\[',  # Rust attributes
+                r"^(fn|let|mut|pub|mod|use|impl|struct|trait|enum|match)\s+",
+                r"^\s*println!\s*\(",
+                r"^#\[",  # Rust attributes
                 # YAML patterns (key: value at start, or just key:)
-                r'^[a-zA-Z_][a-zA-Z0-9_-]*:\s*$',  # key: (alone on line)
-                r'^[a-zA-Z_][a-zA-Z0-9_-]*:\s*\S',  # key: value
-                r'^\s+-\s+\w',  # YAML list items
-                r'^\s+[a-zA-Z_][a-zA-Z0-9_-]*:',  # Indented key:
+                r"^[a-zA-Z_][a-zA-Z0-9_-]*:\s*$",  # key: (alone on line)
+                r"^[a-zA-Z_][a-zA-Z0-9_-]*:\s*\S",  # key: value
+                r"^\s+-\s+\w",  # YAML list items
+                r"^\s+[a-zA-Z_][a-zA-Z0-9_-]*:",  # Indented key:
                 # Dockerfile patterns
-                r'^(FROM|RUN|CMD|COPY|ADD|WORKDIR|ENV|EXPOSE|ENTRYPOINT|ARG|LABEL|USER|VOLUME)\s+',
+                r"^(FROM|RUN|CMD|COPY|ADD|WORKDIR|ENV|EXPOSE|ENTRYPOINT|ARG|LABEL|USER|VOLUME)\s+",
                 # Makefile patterns
-                r'^[a-zA-Z_][a-zA-Z0-9_]*\s*:(?!=)',  # target: (not :=)
-                r'^\t+\w',  # Tab-indented commands
+                r"^[a-zA-Z_][a-zA-Z0-9_]*\s*:(?!=)",  # target: (not :=)
+                r"^\t+\w",  # Tab-indented commands
             ]
 
             for pattern in code_patterns:
@@ -440,15 +466,15 @@ class OutputFormatter:
             # Code patterns that should NOT be treated as prose
             # even if they end with a colon (Python class/def/if/etc.)
             code_intro_patterns = [
-                r'^#!',  # Shebang
-                r'^(class|def|if|elif|else|for|while|with|try|except|finally|async|match|case)\b',
-                r'^(interface|type|enum|function|const|let|var|export|import)\b',
-                r'^(public|private|protected|static)\b',
-                r'^\s*@\w+',  # Decorators
+                r"^#!",  # Shebang
+                r"^(class|def|if|elif|else|for|while|with|try|except|finally|async|match|case)\b",
+                r"^(interface|type|enum|function|const|let|var|export|import)\b",
+                r"^(public|private|protected|static)\b",
+                r"^\s*@\w+",  # Decorators
                 # Shell patterns
-                r'^[A-Z_][A-Z0-9_]*=',  # Variable assignment
-                r'^(echo|printf|sudo|chmod|fi|done|esac|then|do)\b',
-                r'^#\s*[a-z_]',  # Shell comment (lowercase after #, not markdown header)
+                r"^[A-Z_][A-Z0-9_]*=",  # Variable assignment
+                r"^(echo|printf|sudo|chmod|fi|done|esac|then|do)\b",
+                r"^#\s*[a-z_]",  # Shell comment (lowercase after #, not markdown header)
             ]
             for pattern in code_intro_patterns:
                 if re.search(pattern, stripped, re.IGNORECASE):
@@ -456,12 +482,12 @@ class OutputFormatter:
 
             # Prose patterns
             prose_patterns = [
-                r'^(And|Or|But|If|The|This|That|Here|Now|Also|Want|Why|How|What)\s',
-                r'^[A-Z][a-z]+\s+[a-z]+\s+[a-z]+',  # "Common additions depending"
-                r'^\*\s',  # Markdown list
-                r'^-\s+[A-Z]',  # Markdown list with capital
-                r'^#+\s',  # Markdown header
-                r'^.{15,}:\s*$',  # Ends with colon but has significant text (prose intro)
+                r"^(And|Or|But|If|The|This|That|Here|Now|Also|Want|Why|How|What)\s",
+                r"^[A-Z][a-z]+\s+[a-z]+\s+[a-z]+",  # "Common additions depending"
+                r"^\*\s",  # Markdown list
+                r"^-\s+[A-Z]",  # Markdown list with capital
+                r"^#+\s",  # Markdown header
+                r"^.{15,}:\s*$",  # Ends with colon but has significant text (prose intro)
             ]
 
             for pattern in prose_patterns:
@@ -492,7 +518,11 @@ class OutputFormatter:
                         while lookahead < len(lines) and lookahead < j + 3:
                             ahead_line = lines[lookahead]
                             if ahead_line.strip():
-                                if looks_like_code(ahead_line, stripped) or ahead_line.startswith('    ') or ahead_line.startswith('\t'):
+                                if (
+                                    looks_like_code(ahead_line, stripped)
+                                    or ahead_line.startswith("    ")
+                                    or ahead_line.startswith("\t")
+                                ):
                                     found_more_code = True
                                 break
                             lookahead += 1
@@ -509,15 +539,17 @@ class OutputFormatter:
                         break
 
                     # Accept code-like lines or continuation
-                    if (looks_like_code(next_line, stripped) or
-                        next_line.startswith('  ') or
-                        next_line.startswith('\t') or
-                        re.match(r'^\s*[}\])]', next_line)):
+                    if (
+                        looks_like_code(next_line, stripped)
+                        or next_line.startswith("  ")
+                        or next_line.startswith("\t")
+                        or re.match(r"^\s*[}\])]", next_line)
+                    ):
                         code_lines.append(next_line)
                         j += 1
                     else:
                         # Check if it's a closing brace
-                        if next_stripped in ['}', ']', ')']:
+                        if next_stripped in ["}", "]", ")"]:
                             code_lines.append(next_line)
                             j += 1
                         break
@@ -528,16 +560,16 @@ class OutputFormatter:
 
                 if code_lines:
                     # Found code block - convert to fenced
-                    result.append(f'```{stripped}')
+                    result.append(f"```{stripped}")
                     result.extend(code_lines)
-                    result.append('```')
+                    result.append("```")
                     i = j
                     continue
 
             result.append(line)
             i += 1
 
-        return '\n'.join(result)
+        return "\n".join(result)
 
     def _extract_file_path(self, line: str, language: str) -> str | None:
         """Extract file path from the first line of a code block.
@@ -694,19 +726,23 @@ class OutputFormatter:
             else:
                 # Type changed, save current section
                 if current_lines:
-                    sections.append({
-                        "type": current_type,
-                        "content": "\n".join(current_lines),
-                    })
+                    sections.append(
+                        {
+                            "type": current_type,
+                            "content": "\n".join(current_lines),
+                        }
+                    )
                 current_type = line_type
                 current_lines = [line]
 
         # Don't forget the last section
         if current_lines:
-            sections.append({
-                "type": current_type,
-                "content": "\n".join(current_lines),
-            })
+            sections.append(
+                {
+                    "type": current_type,
+                    "content": "\n".join(current_lines),
+                }
+            )
 
         return sections
 

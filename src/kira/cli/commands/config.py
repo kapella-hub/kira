@@ -7,8 +7,8 @@ from typing import Annotated
 
 import typer
 
-from ...core.config import Config
 from ...core import defaults as D
+from ...core.config import Config
 from ..output import console, print_error, print_info, print_success
 
 app = typer.Typer(help="Manage configuration")
@@ -18,7 +18,9 @@ app = typer.Typer(help="Manage configuration")
 def show_config(
     section: Annotated[
         str | None,
-        typer.Argument(help="Section to show (defaults, kira, memory, thinking, workflow, autonomous, personality)"),
+        typer.Argument(
+            help="Section to show (defaults, kira, memory, thinking, workflow, autonomous, personality)"
+        ),
     ] = None,
 ):
     """Show current configuration."""
@@ -74,7 +76,9 @@ def show_config(
         console.print(f"  enabled: {config.personality.enabled}")
         console.print(f"  name: {config.personality.name}")
         if config.personality.custom_instructions:
-            console.print(f"  custom_instructions: {config.personality.custom_instructions[:50]}...")
+            console.print(
+                f"  custom_instructions: {config.personality.custom_instructions[:50]}..."
+            )
 
     sections = {
         "defaults": show_defaults,

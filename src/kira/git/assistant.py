@@ -81,20 +81,20 @@ class GitAssistant:
 
     # Patterns to detect change types from file paths
     TYPE_PATTERNS = {
-        'test': [r'test[s]?/', r'_test\.', r'\.test\.', r'spec\.'],
-        'docs': [r'docs?/', r'README', r'\.md$', r'CHANGELOG'],
-        'config': [r'config', r'\.env', r'\.yaml$', r'\.toml$', r'\.json$'],
-        'ci': [r'\.github/', r'\.gitlab', r'Jenkinsfile', r'\.circleci'],
+        "test": [r"test[s]?/", r"_test\.", r"\.test\.", r"spec\."],
+        "docs": [r"docs?/", r"README", r"\.md$", r"CHANGELOG"],
+        "config": [r"config", r"\.env", r"\.yaml$", r"\.toml$", r"\.json$"],
+        "ci": [r"\.github/", r"\.gitlab", r"Jenkinsfile", r"\.circleci"],
     }
 
     # Keywords to detect commit type from diff
     COMMIT_KEYWORDS = {
-        'feat': ['add', 'new', 'implement', 'create', 'support'],
-        'fix': ['fix', 'bug', 'issue', 'error', 'correct', 'patch'],
-        'refactor': ['refactor', 'restructure', 'reorganize', 'clean', 'simplify'],
-        'perf': ['performance', 'optimize', 'speed', 'faster', 'cache'],
-        'style': ['style', 'format', 'lint', 'whitespace'],
-        'chore': ['update', 'upgrade', 'bump', 'dependency', 'deps'],
+        "feat": ["add", "new", "implement", "create", "support"],
+        "fix": ["fix", "bug", "issue", "error", "correct", "patch"],
+        "refactor": ["refactor", "restructure", "reorganize", "clean", "simplify"],
+        "perf": ["performance", "optimize", "speed", "faster", "cache"],
+        "style": ["style", "format", "lint", "whitespace"],
+        "chore": ["update", "upgrade", "bump", "dependency", "deps"],
     }
 
     def __init__(self, repo_dir: Path | None = None):
@@ -107,7 +107,7 @@ class GitAssistant:
         # Check if git repo
         try:
             result = subprocess.run(
-                ['git', 'rev-parse', '--git-dir'],
+                ["git", "rev-parse", "--git-dir"],
                 cwd=self.repo_dir,
                 capture_output=True,
                 text=True,
@@ -121,7 +121,7 @@ class GitAssistant:
         # Get current branch
         try:
             result = subprocess.run(
-                ['git', 'branch', '--show-current'],
+                ["git", "branch", "--show-current"],
                 cwd=self.repo_dir,
                 capture_output=True,
                 text=True,
@@ -133,22 +133,22 @@ class GitAssistant:
         # Get status
         try:
             result = subprocess.run(
-                ['git', 'status', '--porcelain'],
+                ["git", "status", "--porcelain"],
                 cwd=self.repo_dir,
                 capture_output=True,
                 text=True,
             )
-            for line in result.stdout.strip().split('\n'):
+            for line in result.stdout.strip().split("\n"):
                 if not line:
                     continue
                 indicator = line[:2]
                 file_path = line[3:]
 
-                if indicator[0] in 'MADRC':
+                if indicator[0] in "MADRC":
                     status.staged.append(file_path)
-                if indicator[1] in 'MD':
+                if indicator[1] in "MD":
                     status.unstaged.append(file_path)
-                if indicator == '??':
+                if indicator == "??":
                     status.untracked.append(file_path)
         except Exception:
             pass
@@ -156,13 +156,19 @@ class GitAssistant:
         # Get ahead/behind
         try:
             result = subprocess.run(
-                ['git', 'rev-list', '--left-right', '--count', f'{status.branch}...origin/{status.branch}'],
+                [
+                    "git",
+                    "rev-list",
+                    "--left-right",
+                    "--count",
+                    f"{status.branch}...origin/{status.branch}",
+                ],
                 cwd=self.repo_dir,
                 capture_output=True,
                 text=True,
             )
             if result.returncode == 0:
-                parts = result.stdout.strip().split('\t')
+                parts = result.stdout.strip().split("\t")
                 if len(parts) == 2:
                     status.ahead = int(parts[0])
                     status.behind = int(parts[1])
@@ -174,9 +180,9 @@ class GitAssistant:
     def get_diff(self, staged: bool = True) -> str:
         """Get the current diff."""
         try:
-            cmd = ['git', 'diff']
+            cmd = ["git", "diff"]
             if staged:
-                cmd.append('--staged')
+                cmd.append("--staged")
             result = subprocess.run(
                 cmd,
                 cwd=self.repo_dir,
@@ -199,7 +205,7 @@ class GitAssistant:
         commit_type = self._detect_type_from_files(files)
 
         # If no clear type, detect from diff content
-        if commit_type == 'chore' and diff:
+        if commit_type == "chore" and diff:
             commit_type = self._detect_type_from_diff(diff)
 
         # Detect scope from files
@@ -227,33 +233,83 @@ class GitAssistant:
 
         # Detect type prefix
         prefix = "feature"
-        if any(kw in task_lower for kw in ['fix', 'bug', 'issue', 'error']):
+        if any(kw in task_lower for kw in ["fix", "bug", "issue", "error"]):
             prefix = "fix"
-        elif any(kw in task_lower for kw in ['refactor', 'clean', 'improve']):
+        elif any(kw in task_lower for kw in ["refactor", "clean", "improve"]):
             prefix = "refactor"
-        elif any(kw in task_lower for kw in ['doc', 'readme', 'comment']):
+        elif any(kw in task_lower for kw in ["doc", "readme", "comment"]):
             prefix = "docs"
-        elif any(kw in task_lower for kw in ['test', 'spec']):
+        elif any(kw in task_lower for kw in ["test", "spec"]):
             prefix = "test"
 
         # Extract key words for branch name
         # Remove common words
-        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare', 'ought', 'used', 'please', 'implement', 'add', 'create', 'make', 'build', 'update', 'fix', 'change'}
+        stop_words = {
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "shall",
+            "can",
+            "need",
+            "dare",
+            "ought",
+            "used",
+            "please",
+            "implement",
+            "add",
+            "create",
+            "make",
+            "build",
+            "update",
+            "fix",
+            "change",
+        }
 
-        words = re.findall(r'\b[a-z]+\b', task_lower)
+        words = re.findall(r"\b[a-z]+\b", task_lower)
         key_words = [w for w in words if w not in stop_words and len(w) > 2][:4]
 
         if not key_words:
-            key_words = ['update']
+            key_words = ["update"]
 
-        slug = '-'.join(key_words)
+        slug = "-".join(key_words)
         return f"{prefix}/{slug}"
 
     def stage_all(self) -> bool:
         """Stage all changes."""
         try:
             subprocess.run(
-                ['git', 'add', '-A'],
+                ["git", "add", "-A"],
                 cwd=self.repo_dir,
                 check=True,
             )
@@ -265,7 +321,7 @@ class GitAssistant:
         """Create a commit with the given message."""
         try:
             result = subprocess.run(
-                ['git', 'commit', '-m', message],
+                ["git", "commit", "-m", message],
                 cwd=self.repo_dir,
                 capture_output=True,
                 text=True,
@@ -281,15 +337,15 @@ class GitAssistant:
         for commit_type, patterns in self.TYPE_PATTERNS.items():
             for pattern in patterns:
                 if any(re.search(pattern, f, re.IGNORECASE) for f in files):
-                    if commit_type == 'test':
-                        return 'test'
-                    elif commit_type == 'docs':
-                        return 'docs'
-                    elif commit_type == 'config':
-                        return 'chore'
-                    elif commit_type == 'ci':
-                        return 'ci'
-        return 'chore'
+                    if commit_type == "test":
+                        return "test"
+                    elif commit_type == "docs":
+                        return "docs"
+                    elif commit_type == "config":
+                        return "chore"
+                    elif commit_type == "ci":
+                        return "ci"
+        return "chore"
 
     def _detect_type_from_diff(self, diff: str) -> str:
         """Detect commit type from diff content."""
@@ -301,7 +357,7 @@ class GitAssistant:
             scores[commit_type] = sum(diff_lower.count(kw) for kw in keywords)
 
         if not any(scores.values()):
-            return 'chore'
+            return "chore"
 
         return max(scores, key=scores.get)
 
@@ -326,14 +382,14 @@ class GitAssistant:
         if common:
             # Use last meaningful directory
             for part in reversed(common):
-                if part not in ('src', 'lib', 'app', '.'):
+                if part not in ("src", "lib", "app", "."):
                     return part
 
         # If single file, use directory
         if len(files) == 1:
             parts = Path(files[0]).parts
             if len(parts) > 1:
-                return parts[-2] if parts[-2] not in ('src', 'lib') else ""
+                return parts[-2] if parts[-2] not in ("src", "lib") else ""
 
         return ""
 
@@ -342,8 +398,10 @@ class GitAssistant:
         # If task context provided, use it
         if task_context:
             # Clean up and truncate
-            subject = task_context.strip().split('\n')[0]
-            subject = re.sub(r'^(implement|add|create|fix|update|make)\s+', '', subject, flags=re.IGNORECASE)
+            subject = task_context.strip().split("\n")[0]
+            subject = re.sub(
+                r"^(implement|add|create|fix|update|make)\s+", "", subject, flags=re.IGNORECASE
+            )
             if len(subject) > 50:
                 subject = subject[:47] + "..."
             return subject.lower()

@@ -2,13 +2,6 @@
 
 from .execution import ExecutionMemory, ExecutionRecord
 from .extractor import ExtractedMemory, ExtractionResult, MemoryExtractor, extract_from_response
-from .maintenance import (
-    CleanupResult,
-    ConsolidationResult,
-    DuplicatePair,
-    MemoryConsolidator,
-    MemoryMaintenance,
-)
 from .failures import (
     FailureLearning,
     FailurePattern,
@@ -16,7 +9,14 @@ from .failures import (
     extract_error_message,
     get_failure_learning,
 )
-from .models import ExtractedMemory, Memory, MemorySource, MemoryType
+from .maintenance import (
+    CleanupResult,
+    ConsolidationResult,
+    DuplicatePair,
+    MemoryConsolidator,
+    MemoryMaintenance,
+)
+from .models import Memory, MemorySource, MemoryType
 from .project_store import ProjectMemoryStore, get_project_memory
 from .relevance import RelevanceScorer, get_relevant_memories
 from .store import MemoryStore

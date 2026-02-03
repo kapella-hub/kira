@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import time
-from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from rich.console import Console
 
@@ -14,7 +14,6 @@ from .models import (
     CorrectionStrategy,
     ExecutionAttempt,
     FailureAnalysis,
-    FailureType,
 )
 from .reviser import PlanReviser
 
@@ -74,9 +73,7 @@ class SelfCorrector:
 
         for attempt_num in range(self.max_retries + 1):
             # Execute current plan
-            attempt = await self._execute_plan(
-                current_plan, task, attempt_num, attempts
-            )
+            attempt = await self._execute_plan(current_plan, task, attempt_num, attempts)
             attempts.append(attempt)
 
             if on_attempt:
@@ -94,18 +91,14 @@ class SelfCorrector:
 
             # Failure - analyze and potentially retry
             if attempt_num >= self.max_retries:
-                self._log_warning(
-                    f"Max retries ({self.max_retries}) exceeded"
-                )
+                self._log_warning(f"Max retries ({self.max_retries}) exceeded")
                 break
 
             # Analyze failure
             self._log_info(f"Analyzing failure (attempt {attempt_num + 1})...")
 
             if self.use_deep_analysis:
-                analysis = await self.analyzer.analyze_deep(
-                    attempt, task, attempts[:-1]
-                )
+                analysis = await self.analyzer.analyze_deep(attempt, task, attempts[:-1])
             else:
                 analysis = self.analyzer.analyze_quick(attempt)
 
@@ -120,12 +113,8 @@ class SelfCorrector:
                 break
 
             # Revise plan for next attempt
-            self._log_info(
-                f"Revising plan using {analysis.recommended_strategy.value} strategy..."
-            )
-            current_plan = self._revise_plan_for_retry(
-                current_plan, analysis, attempt_num
-            )
+            self._log_info(f"Revising plan using {analysis.recommended_strategy.value} strategy...")
+            current_plan = self._revise_plan_for_retry(current_plan, analysis, attempt_num)
 
         # All retries exhausted
         return CorrectionResult(
@@ -182,7 +171,9 @@ class SelfCorrector:
                 result=output,
                 success=success,
                 error=error,
-                error_type=self.analyzer.detect_failure_type(error or "", output) if not success else None,
+                error_type=self.analyzer.detect_failure_type(error or "", output)
+                if not success
+                else None,
                 duration_seconds=duration,
             )
             attempts.append(attempt)
@@ -199,6 +190,7 @@ class SelfCorrector:
 
             # Update step for next attempt
             from ..thinking.models import ExecutionStep
+
             current_step = ExecutionStep(
                 number=step.number,
                 action=revision.revised_step,
@@ -218,9 +210,7 @@ class SelfCorrector:
     ) -> ExecutionAttempt:
         """Execute a plan and return the attempt result."""
         # Build execution prompt with plan context
-        prompt = self._build_execution_prompt(
-            plan, task, attempt_num, previous_attempts
-        )
+        prompt = self._build_execution_prompt(plan, task, attempt_num, previous_attempts)
 
         start = time.time()
         output_parts: list[str] = []
@@ -248,7 +238,9 @@ class SelfCorrector:
             result=output,
             success=success,
             error=error,
-            error_type=self.analyzer.detect_failure_type(error or "", output) if not success else None,
+            error_type=self.analyzer.detect_failure_type(error or "", output)
+            if not success
+            else None,
             duration_seconds=duration,
         )
 
@@ -268,33 +260,39 @@ class SelfCorrector:
         ]
 
         if previous_attempts:
-            prompt_parts.extend([
-                "",
-                "PREVIOUS ATTEMPTS (learn from these failures):",
-            ])
+            prompt_parts.extend(
+                [
+                    "",
+                    "PREVIOUS ATTEMPTS (learn from these failures):",
+                ]
+            )
             for attempt in previous_attempts[-2:]:  # Last 2 attempts
                 prompt_parts.append(attempt.to_context())
 
         if attempt_num > 0:
-            prompt_parts.extend([
-                "",
-                f"This is attempt #{attempt_num + 1}. Address the issues from previous attempts.",
-                "Be especially careful about:",
-            ])
+            prompt_parts.extend(
+                [
+                    "",
+                    f"This is attempt #{attempt_num + 1}. Address the issues from previous attempts.",
+                    "Be especially careful about:",
+                ]
+            )
             # Add specific guidance based on previous errors
             for attempt in previous_attempts[-1:]:
                 if attempt.error_type:
                     prompt_parts.append(f"- Avoiding {attempt.error_type.value}")
 
-        prompt_parts.extend([
-            "",
-            "Execute the plan step by step. For each step:",
-            "1. Clearly state what you're doing",
-            "2. Show the code or command",
-            "3. Verify it works before moving on",
-            "",
-            "Begin execution:",
-        ])
+        prompt_parts.extend(
+            [
+                "",
+                "Execute the plan step by step. For each step:",
+                "1. Clearly state what you're doing",
+                "2. Show the code or command",
+                "3. Verify it works before moving on",
+                "",
+                "Begin execution:",
+            ]
+        )
 
         return "\n".join(prompt_parts)
 
@@ -322,25 +320,27 @@ class SelfCorrector:
             prompt_parts.extend(["", "CONTEXT FROM PREVIOUS STEPS:", context])
 
         if previous_attempts:
-            prompt_parts.extend([
-                "",
-                "PREVIOUS ATTEMPTS AT THIS STEP:",
-            ])
+            prompt_parts.extend(
+                [
+                    "",
+                    "PREVIOUS ATTEMPTS AT THIS STEP:",
+                ]
+            )
             for attempt in previous_attempts:
                 prompt_parts.append(attempt.to_context())
             prompt_parts.append("")
             prompt_parts.append("Learn from these failures and try a different approach.")
 
-        prompt_parts.extend([
-            "",
-            "Execute this step and show your work:",
-        ])
+        prompt_parts.extend(
+            [
+                "",
+                "Execute this step and show your work:",
+            ]
+        )
 
         return "\n".join(prompt_parts)
 
-    def _check_success(
-        self, output: str, error: str | None, plan: RefinedPlan
-    ) -> bool:
+    def _check_success(self, output: str, error: str | None, plan: RefinedPlan) -> bool:
         """Check if execution was successful."""
         if error:
             return False
@@ -406,13 +406,14 @@ class SelfCorrector:
         # For now, we'll update the summary to include failure context
         from ..thinking.models import RefinedPlan as RP
 
-        additional_context = f"\n\nPREVIOUS FAILURE (attempt {attempt_num + 1}):\n{analysis.to_context()}"
+        additional_context = (
+            f"\n\nPREVIOUS FAILURE (attempt {attempt_num + 1}):\n{analysis.to_context()}"
+        )
 
         return RP(
             original_plan=plan.original_plan,
-            refinements_made=plan.refinements_made + [
-                f"Addressing {analysis.failure_type.value}: {analysis.root_cause}"
-            ],
+            refinements_made=plan.refinements_made
+            + [f"Addressing {analysis.failure_type.value}: {analysis.root_cause}"],
             final_steps=plan.final_steps,
             final_summary=plan.final_summary + additional_context,
             confidence_score=max(0.3, plan.confidence_score - 0.15),

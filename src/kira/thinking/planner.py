@@ -39,7 +39,7 @@ Output your analysis in this EXACT format (use these markers):
 Now analyze this task:
 """
 
-    def __init__(self, kiro_client: "KiraClient"):
+    def __init__(self, kiro_client: KiraClient):
         self.client = kiro_client
 
     async def analyze(self, prompt: str, context: str = "") -> ThinkingPlan:

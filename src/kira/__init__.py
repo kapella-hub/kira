@@ -26,24 +26,30 @@ Usage:
 
 try:
     from importlib.metadata import version as _get_version
+
     __version__ = _get_version("kira")
 except Exception:
     __version__ = "0.0.0-dev"
+
 
 # Core exports (lazy imports for faster startup)
 def __getattr__(name: str):
     """Lazy import for main classes."""
     if name == "KiraAgent":
         from .core.agent import KiraAgent
+
         return KiraAgent
     if name == "AgentResult":
         from .core.agent import AgentResult
+
         return AgentResult
     if name == "Config":
         from .core.config import Config
+
         return Config
     if name == "KiraClient":
         from .core.client import KiraClient
+
         return KiraClient
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

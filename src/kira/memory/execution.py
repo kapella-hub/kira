@@ -56,6 +56,7 @@ class ExecutionMemory:
         """
         if db_path is None:
             from ..core.config import Config
+
             db_path = Config.USER_DATA_DIR / "execution_memory.db"
 
         db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -105,18 +106,48 @@ class ExecutionMemory:
         """Extract a pattern from task for fuzzy matching."""
         # Extract key action words
         action_words = [
-            "implement", "create", "add", "fix", "update", "refactor",
-            "delete", "remove", "change", "modify", "write", "build",
-            "test", "debug", "deploy", "configure", "install", "setup",
+            "implement",
+            "create",
+            "add",
+            "fix",
+            "update",
+            "refactor",
+            "delete",
+            "remove",
+            "change",
+            "modify",
+            "write",
+            "build",
+            "test",
+            "debug",
+            "deploy",
+            "configure",
+            "install",
+            "setup",
         ]
         words = task.lower().split()
         actions = [w for w in words if w in action_words]
 
         # Extract key nouns/concepts
         concept_words = [
-            "function", "class", "method", "api", "endpoint", "database",
-            "file", "config", "test", "error", "bug", "feature", "module",
-            "component", "service", "model", "view", "controller",
+            "function",
+            "class",
+            "method",
+            "api",
+            "endpoint",
+            "database",
+            "file",
+            "config",
+            "test",
+            "error",
+            "bug",
+            "feature",
+            "module",
+            "component",
+            "service",
+            "model",
+            "view",
+            "controller",
         ]
         concepts = [w for w in words if w in concept_words]
 

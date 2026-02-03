@@ -5,13 +5,12 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sqlite3
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-
-import sqlite3
-from contextlib import contextmanager
 
 
 @dataclass
@@ -41,10 +40,7 @@ class FailurePattern:
 
         # Check file pattern matches
         if files and self.file_patterns:
-            matching_files = sum(
-                1 for fp in self.file_patterns
-                if any(fp in f for f in files)
-            )
+            matching_files = sum(1 for fp in self.file_patterns if any(fp in f for f in files))
             score += 0.3 * (matching_files / len(self.file_patterns))
 
         # Boost for error type mention
@@ -129,9 +125,7 @@ class FailureLearning:
             The recorded FailurePattern
         """
         # Generate hash for deduplication
-        error_hash = hashlib.md5(
-            f"{error_type}:{error_message[:100]}".encode()
-        ).hexdigest()
+        error_hash = hashlib.md5(f"{error_type}:{error_message[:100]}".encode()).hexdigest()
 
         # Extract keywords from task
         task_keywords = self._extract_keywords(task) if task else []
@@ -145,42 +139,53 @@ class FailureLearning:
         with self._connect() as conn:
             # Check if exists
             existing = conn.execute(
-                "SELECT id, occurrence_count FROM failures WHERE error_hash = ?",
-                (error_hash,)
+                "SELECT id, occurrence_count FROM failures WHERE error_hash = ?", (error_hash,)
             ).fetchone()
 
             if existing:
                 # Update existing
-                conn.execute("""
+                conn.execute(
+                    """
                     UPDATE failures
                     SET occurrence_count = occurrence_count + 1,
                         last_occurred = ?,
                         solution = CASE WHEN ? != '' THEN ? ELSE solution END
                     WHERE id = ?
-                """, (now, solution, solution, existing['id']))
+                """,
+                    (now, solution, solution, existing["id"]),
+                )
 
                 return FailurePattern(
-                    id=existing['id'],
+                    id=existing["id"],
                     error_type=error_type,
                     error_message=error_message,
                     context=context,
                     solution=solution,
                     task_keywords=task_keywords,
                     file_patterns=file_patterns,
-                    occurrence_count=existing['occurrence_count'] + 1,
+                    occurrence_count=existing["occurrence_count"] + 1,
                 )
             else:
                 # Insert new
-                cursor = conn.execute("""
+                cursor = conn.execute(
+                    """
                     INSERT INTO failures
                     (error_hash, error_type, error_message, context, solution,
                      task_keywords, file_patterns, created_at, last_occurred)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    error_hash, error_type, error_message, context, solution,
-                    json.dumps(task_keywords), json.dumps(file_patterns),
-                    now, now,
-                ))
+                """,
+                    (
+                        error_hash,
+                        error_type,
+                        error_message,
+                        context,
+                        solution,
+                        json.dumps(task_keywords),
+                        json.dumps(file_patterns),
+                        now,
+                        now,
+                    ),
+                )
 
                 return FailurePattern(
                     id=cursor.lastrowid,
@@ -195,10 +200,7 @@ class FailureLearning:
     def record_solution(self, failure_id: int, solution: str) -> None:
         """Record a solution for a failure."""
         with self._connect() as conn:
-            conn.execute(
-                "UPDATE failures SET solution = ? WHERE id = ?",
-                (solution, failure_id)
-            )
+            conn.execute("UPDATE failures SET solution = ? WHERE id = ?", (solution, failure_id))
 
     def get_relevant_warnings(
         self,
@@ -229,16 +231,16 @@ class FailureLearning:
         patterns = []
         for row in rows:
             pattern = FailurePattern(
-                id=row['id'],
-                error_type=row['error_type'],
-                error_message=row['error_message'],
-                context=row['context'] or "",
-                solution=row['solution'] or "",
-                task_keywords=json.loads(row['task_keywords'] or "[]"),
-                file_patterns=json.loads(row['file_patterns'] or "[]"),
-                created_at=datetime.fromisoformat(row['created_at']),
-                occurrence_count=row['occurrence_count'],
-                last_occurred=datetime.fromisoformat(row['last_occurred']),
+                id=row["id"],
+                error_type=row["error_type"],
+                error_message=row["error_message"],
+                context=row["context"] or "",
+                solution=row["solution"] or "",
+                task_keywords=json.loads(row["task_keywords"] or "[]"),
+                file_patterns=json.loads(row["file_patterns"] or "[]"),
+                created_at=datetime.fromisoformat(row["created_at"]),
+                occurrence_count=row["occurrence_count"],
+                last_occurred=datetime.fromisoformat(row["last_occurred"]),
             )
 
             score = pattern.matches_context(task, files)
@@ -282,14 +284,56 @@ class FailureLearning:
         """Extract relevant keywords from a task description."""
         # Remove common words
         stop_words = {
-            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-            'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-            'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-            'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'please',
-            'i', 'you', 'we', 'they', 'it', 'this', 'that', 'these', 'those',
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "shall",
+            "can",
+            "need",
+            "please",
+            "i",
+            "you",
+            "we",
+            "they",
+            "it",
+            "this",
+            "that",
+            "these",
+            "those",
         }
 
-        words = re.findall(r'\b[a-z]+\b', task.lower())
+        words = re.findall(r"\b[a-z]+\b", task.lower())
         keywords = [w for w in words if w not in stop_words and len(w) > 2]
 
         # Return unique keywords, preserving order
@@ -319,24 +363,24 @@ class FailureLearning:
             """).fetchall()
 
         return {
-            'total_failures': total,
-            'with_solutions': with_solution,
-            'by_type': {row['error_type']: row['count'] for row in by_type},
+            "total_failures": total,
+            "with_solutions": with_solution,
+            "by_type": {row["error_type"]: row["count"] for row in by_type},
         }
 
 
 # Patterns for detecting error types from output
 ERROR_PATTERNS = {
-    'SyntaxError': [r'SyntaxError:', r'syntax error', r'unexpected token'],
-    'ImportError': [r'ImportError:', r'ModuleNotFoundError:', r'No module named'],
-    'TypeError': [r'TypeError:', r'not callable', r'NoneType'],
-    'AttributeError': [r'AttributeError:', r'has no attribute'],
-    'ValueError': [r'ValueError:', r'invalid literal', r'could not convert'],
-    'KeyError': [r'KeyError:'],
-    'IndexError': [r'IndexError:', r'list index out of range'],
-    'FileNotFoundError': [r'FileNotFoundError:', r'No such file or directory'],
-    'TestFailure': [r'FAILED', r'AssertionError:', r'test.*failed'],
-    'RuntimeError': [r'RuntimeError:', r'maximum recursion'],
+    "SyntaxError": [r"SyntaxError:", r"syntax error", r"unexpected token"],
+    "ImportError": [r"ImportError:", r"ModuleNotFoundError:", r"No module named"],
+    "TypeError": [r"TypeError:", r"not callable", r"NoneType"],
+    "AttributeError": [r"AttributeError:", r"has no attribute"],
+    "ValueError": [r"ValueError:", r"invalid literal", r"could not convert"],
+    "KeyError": [r"KeyError:"],
+    "IndexError": [r"IndexError:", r"list index out of range"],
+    "FileNotFoundError": [r"FileNotFoundError:", r"No such file or directory"],
+    "TestFailure": [r"FAILED", r"AssertionError:", r"test.*failed"],
+    "RuntimeError": [r"RuntimeError:", r"maximum recursion"],
 }
 
 
@@ -351,7 +395,7 @@ def detect_error_type(output: str) -> str | None:
 
 def extract_error_message(output: str, error_type: str) -> str:
     """Extract the error message from output."""
-    lines = output.split('\n')
+    lines = output.split("\n")
 
     # Find the line with the error
     for i, line in enumerate(lines):

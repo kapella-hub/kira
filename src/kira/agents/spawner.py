@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, AsyncIterator
+from typing import TYPE_CHECKING
 
 from .models import AgentExecution
 from .registry import AgentRegistry, AgentSpec
@@ -34,8 +35,8 @@ class AgentSpawner:
 
     def __init__(
         self,
-        kiro_client: "KiraClient",
-        session_manager: "SessionManager",
+        kiro_client: KiraClient,
+        session_manager: SessionManager,
         registry: AgentRegistry | None = None,
     ):
         self.client = kiro_client
@@ -98,9 +99,7 @@ class AgentSpawner:
             execution.output = str(e)
             raise
         finally:
-            execution.duration_seconds = (
-                datetime.utcnow() - execution.started_at
-            ).total_seconds()
+            execution.duration_seconds = (datetime.utcnow() - execution.started_at).total_seconds()
 
     async def spawn_batch(
         self,

@@ -45,14 +45,10 @@ class Session:
 
 
 # Pattern for memory extraction from agent responses
-REMEMBER_PATTERN = re.compile(
-    r"\[REMEMBER:([^\]]+)\]\s*(.+?)(?=\[REMEMBER:|$)", re.DOTALL
-)
+REMEMBER_PATTERN = re.compile(r"\[REMEMBER:([^\]]+)\]\s*(.+?)(?=\[REMEMBER:|$)", re.DOTALL)
 
 # Pattern for project memory (shared with team)
-PROJECT_PATTERN = re.compile(
-    r"\[PROJECT:([^\]]+)\]\s*(.+?)(?=\[PROJECT:|$)", re.DOTALL
-)
+PROJECT_PATTERN = re.compile(r"\[PROJECT:([^\]]+)\]\s*(.+?)(?=\[PROJECT:|$)", re.DOTALL)
 
 
 class SessionManager:
@@ -321,7 +317,10 @@ class SessionManager:
                     tags.append(category)
 
             self.memory.store(
-                key, content, tags=tags, importance=importance,
+                key,
+                content,
+                tags=tags,
+                importance=importance,
                 source=MemorySource.EXTRACTED,
             )
             saved += 1

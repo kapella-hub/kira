@@ -44,7 +44,9 @@ class BaseTool(ABC):
             return False, f"Tool {self.name} requires trust level"
         return True, ""
 
-    def record(self, kwargs: dict[str, str | int | bool | list[str] | None], result: ToolResult) -> None:
+    def record(
+        self, kwargs: dict[str, str | int | bool | list[str] | None], result: ToolResult
+    ) -> None:
         """Record tool execution."""
         call = ToolCall(tool_name=self.name, arguments=kwargs)
         self.context.record_call(call, result)

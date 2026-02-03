@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import re
 import time
-from typing import TYPE_CHECKING, AsyncIterator, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from .models import (
     Analysis,
@@ -33,13 +33,13 @@ if TYPE_CHECKING:
 # Phase-specific model recommendations
 # Simpler phases use faster models, critical phases use best models
 PHASE_MODELS = {
-    ThinkingPhase.UNDERSTAND: "fast",    # Quick comprehension
-    ThinkingPhase.EXPLORE: "smart",      # Needs creativity
-    ThinkingPhase.ANALYZE: "smart",      # Balanced analysis
-    ThinkingPhase.PLAN: "smart",         # Structured planning
-    ThinkingPhase.CRITIQUE: "best",      # Critical evaluation needs depth
-    ThinkingPhase.REFINE: "best",        # Final refinement needs quality
-    ThinkingPhase.VERIFY: "smart",       # Systematic check
+    ThinkingPhase.UNDERSTAND: "fast",  # Quick comprehension
+    ThinkingPhase.EXPLORE: "smart",  # Needs creativity
+    ThinkingPhase.ANALYZE: "smart",  # Balanced analysis
+    ThinkingPhase.PLAN: "smart",  # Structured planning
+    ThinkingPhase.CRITIQUE: "best",  # Critical evaluation needs depth
+    ThinkingPhase.REFINE: "best",  # Final refinement needs quality
+    ThinkingPhase.VERIFY: "smart",  # Systematic check
 }
 
 # Confidence threshold for loop-back
@@ -71,10 +71,10 @@ class DeepReasoning:
 
     def __init__(
         self,
-        kiro_client: "KiraClient",
+        kiro_client: KiraClient,
         console: Console | None = None,
         verbose: bool = True,
-        memory_store: "MemoryStore | None" = None,
+        memory_store: MemoryStore | None = None,
         use_phase_models: bool = True,
     ):
         self.client = kiro_client
@@ -211,7 +211,9 @@ class DeepReasoning:
                 # Simplified path: UNDERSTAND → PLAN only
                 self._set_phase_model(ThinkingPhase.PLAN)
                 if self.verbose:
-                    self.console.print("\n[bold cyan]Phase 2: Creating execution plan...[/bold cyan]")
+                    self.console.print(
+                        "\n[bold cyan]Phase 2: Creating execution plan...[/bold cyan]"
+                    )
 
                 # Create a simple analysis for the plan phase
                 simple_analysis = Analysis(
@@ -262,7 +264,9 @@ class DeepReasoning:
             self._set_phase_model(ThinkingPhase.EXPLORE)
             if self.verbose:
                 phase_num = 2 + (loop_back_count * 4)  # Adjust numbering on loop-back
-                self.console.print(f"\n[bold cyan]Phase {phase_num}: Exploring approaches...[/bold cyan]")
+                self.console.print(
+                    f"\n[bold cyan]Phase {phase_num}: Exploring approaches...[/bold cyan]"
+                )
             result.exploration = await self._phase_explore(task, result.understanding, context)
             if ThinkingPhase.EXPLORE not in result.phases_completed:
                 result.phases_completed.append(ThinkingPhase.EXPLORE)
@@ -275,7 +279,9 @@ class DeepReasoning:
             self._set_phase_model(ThinkingPhase.ANALYZE)
             if self.verbose:
                 phase_num = 3 + (loop_back_count * 4)
-                self.console.print(f"\n[bold cyan]Phase {phase_num}: Analyzing approaches...[/bold cyan]")
+                self.console.print(
+                    f"\n[bold cyan]Phase {phase_num}: Analyzing approaches...[/bold cyan]"
+                )
             result.analysis = await self._phase_analyze(
                 task, result.understanding, result.exploration, context
             )
@@ -290,7 +296,9 @@ class DeepReasoning:
             self._set_phase_model(ThinkingPhase.PLAN)
             if self.verbose:
                 phase_num = 4 + (loop_back_count * 4)
-                self.console.print(f"\n[bold cyan]Phase {phase_num}: Creating execution plan...[/bold cyan]")
+                self.console.print(
+                    f"\n[bold cyan]Phase {phase_num}: Creating execution plan...[/bold cyan]"
+                )
             result.initial_plan = await self._phase_plan(
                 task, result.understanding, result.analysis, context
             )
@@ -353,7 +361,9 @@ class DeepReasoning:
         # Phase 7: Verify (new)
         self._set_phase_model(ThinkingPhase.VERIFY)
         if self.verbose:
-            self.console.print("\n[bold cyan]Phase 7: Verifying against requirements...[/bold cyan]")
+            self.console.print(
+                "\n[bold cyan]Phase 7: Verifying against requirements...[/bold cyan]"
+            )
         result.verification = await self._phase_verify(
             task, result.understanding, result.refined_plan, context
         )
@@ -367,9 +377,7 @@ class DeepReasoning:
     # Phase 1: Understand
     # =========================================================================
 
-    async def _phase_understand(
-        self, task: str, context: str
-    ) -> TaskUnderstanding:
+    async def _phase_understand(self, task: str, context: str) -> TaskUnderstanding:
         """Phase 1: Deeply understand the task."""
         prompt = f"""You are a senior engineer analyzing a task before implementation.
 
@@ -469,8 +477,8 @@ Now analyze the task:"""
 
 ## Understanding
 Core Goal: {understanding.core_goal}
-Constraints: {', '.join(understanding.constraints) if understanding.constraints else 'None identified'}
-Success Criteria: {', '.join(understanding.success_criteria) if understanding.success_criteria else 'Task completed correctly'}
+Constraints: {", ".join(understanding.constraints) if understanding.constraints else "None identified"}
+Success Criteria: {", ".join(understanding.success_criteria) if understanding.success_criteria else "Task completed correctly"}
 
 ## Context
 {context if context else "No additional context."}
@@ -728,11 +736,11 @@ Now analyze:"""
 {analysis.detailed_reasoning}
 
 ## Known Issues & Mitigations
-Issues: {', '.join(analysis.potential_issues) if analysis.potential_issues else 'None identified'}
-Mitigations: {', '.join(analysis.mitigations) if analysis.mitigations else 'None needed'}
+Issues: {", ".join(analysis.potential_issues) if analysis.potential_issues else "None identified"}
+Mitigations: {", ".join(analysis.mitigations) if analysis.mitigations else "None needed"}
 
 ## Dependencies
-{', '.join(analysis.dependencies) if analysis.dependencies else 'None'}
+{", ".join(analysis.dependencies) if analysis.dependencies else "None"}
 
 ## Context
 {context if context else "No additional context."}
@@ -781,9 +789,7 @@ Now create the plan:"""
     def _parse_plan(self, output: str) -> ExecutionPlan:
         """Parse execution plan from LLM output."""
         # Extract summary
-        summary_match = re.search(
-            r"\[PLAN:summary\]\s*(.+?)(?=\[PLAN:|$)", output, re.DOTALL
-        )
+        summary_match = re.search(r"\[PLAN:summary\]\s*(.+?)(?=\[PLAN:|$)", output, re.DOTALL)
         summary = summary_match.group(1).strip() if summary_match else ""
 
         # Extract complexity
@@ -797,9 +803,7 @@ Now create the plan:"""
         effort = effort_match.group(1).strip() if effort_match else "medium"
 
         # Extract prerequisites
-        prereq_match = re.search(
-            r"\[PLAN:prerequisites\]\s*(.+?)(?=\[PLAN:|$)", output, re.DOTALL
-        )
+        prereq_match = re.search(r"\[PLAN:prerequisites\]\s*(.+?)(?=\[PLAN:|$)", output, re.DOTALL)
         prerequisites = []
         if prereq_match:
             prerequisites = re.findall(r"^[-*]\s*(.+)$", prereq_match.group(1), re.MULTILINE)
@@ -884,7 +888,7 @@ Be thorough and critical - it's better to find issues now than during execution.
 {understanding.core_goal}
 
 ## Success Criteria
-{chr(10).join('- ' + c for c in understanding.success_criteria) if understanding.success_criteria else 'Not specified'}
+{chr(10).join("- " + c for c in understanding.success_criteria) if understanding.success_criteria else "Not specified"}
 
 ## The Plan
 Summary: {plan.summary}
@@ -995,16 +999,16 @@ Steps:
 
 ## Critique Results
 Strengths:
-{chr(10).join('- ' + s for s in critique.strengths) if critique.strengths else '- None identified'}
+{chr(10).join("- " + s for s in critique.strengths) if critique.strengths else "- None identified"}
 
 Weaknesses:
-{chr(10).join('- ' + w for w in critique.weaknesses) if critique.weaknesses else '- None identified'}
+{chr(10).join("- " + w for w in critique.weaknesses) if critique.weaknesses else "- None identified"}
 
 Blind Spots:
-{chr(10).join('- ' + b for b in critique.blind_spots) if critique.blind_spots else '- None identified'}
+{chr(10).join("- " + b for b in critique.blind_spots) if critique.blind_spots else "- None identified"}
 
 Suggested Improvements:
-{chr(10).join('- ' + i for i in critique.improvements) if critique.improvements else '- None suggested'}
+{chr(10).join("- " + i for i in critique.improvements) if critique.improvements else "- None suggested"}
 
 Initial Confidence: {critique.confidence_score:.0%}
 
@@ -1049,9 +1053,7 @@ Now refine the plan:"""
     def _parse_refined_plan(self, output: str, original_plan: ExecutionPlan) -> RefinedPlan:
         """Parse refined plan from LLM output."""
         # Extract summary
-        summary_match = re.search(
-            r"\[REFINE:summary\]\s*(.+?)(?=\[REFINE:|$)", output, re.DOTALL
-        )
+        summary_match = re.search(r"\[REFINE:summary\]\s*(.+?)(?=\[REFINE:|$)", output, re.DOTALL)
         summary = summary_match.group(1).strip() if summary_match else original_plan.summary
 
         # Extract refinements
@@ -1139,10 +1141,10 @@ Now refine the plan:"""
 {understanding.core_goal}
 
 ## Success Criteria
-{chr(10).join('- ' + c for c in understanding.success_criteria) if understanding.success_criteria else 'Not specified'}
+{chr(10).join("- " + c for c in understanding.success_criteria) if understanding.success_criteria else "Not specified"}
 
 ## Implicit Requirements
-{chr(10).join('- ' + r for r in understanding.implicit_requirements) if understanding.implicit_requirements else 'None identified'}
+{chr(10).join("- " + r for r in understanding.implicit_requirements) if understanding.implicit_requirements else "None identified"}
 
 ## The Final Plan
 Summary: {refined_plan.final_summary}

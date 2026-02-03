@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING
 
 from .models import ThinkingPlan
 
@@ -20,8 +21,8 @@ class ThinkingExecutor:
 
     def __init__(
         self,
-        kiro_client: "KiraClient",
-        session_manager: "SessionManager | None" = None,
+        kiro_client: KiraClient,
+        session_manager: SessionManager | None = None,
     ):
         self.client = kiro_client
         self.session = session_manager

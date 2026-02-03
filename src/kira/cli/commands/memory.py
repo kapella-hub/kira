@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 
@@ -40,16 +40,18 @@ def parse_memory_types(types: list[str] | None) -> list[MemoryType] | None:
 @app.command("list")
 def list_memories(
     tags: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         typer.Option("--tags", "-t", help="Filter by tags"),
     ] = None,
     memory_type: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--type", "-T", help="Filter by type (semantic, episodic, procedural)"),
     ] = None,
     source: Annotated[
-        Optional[str],
-        typer.Option("--source", "-s", help="Filter by source (user, extracted, consolidated, marker)"),
+        str | None,
+        typer.Option(
+            "--source", "-s", help="Filter by source (user, extracted, consolidated, marker)"
+        ),
     ] = None,
     limit: Annotated[
         int,
@@ -84,11 +86,11 @@ def list_memories(
 def search_memories(
     query: Annotated[str, typer.Argument(help="Search query")],
     tags: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         typer.Option("--tags", "-t", help="Filter by tags"),
     ] = None,
     memory_type: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--type", "-T", help="Filter by type (semantic, episodic, procedural)"),
     ] = None,
     limit: Annotated[
@@ -118,7 +120,7 @@ def add_memory(
     key: Annotated[str, typer.Argument(help="Memory key (e.g., 'project:config')")],
     content: Annotated[str, typer.Argument(help="Memory content")],
     tags: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         typer.Option("--tags", "-t", help="Tags for this memory"),
     ] = None,
     importance: Annotated[
@@ -138,7 +140,8 @@ def add_memory(
     mtype = parse_memory_type(memory_type)
     store = get_store()
     memory = store.store(
-        key, content,
+        key,
+        content,
         tags=tags,
         importance=importance,
         memory_type=mtype,
@@ -163,7 +166,9 @@ def get_memory(
     console.print(f"[cyan]Content:[/cyan] {memory.content}")
     console.print(f"[cyan]Type:[/cyan] {memory.memory_type.value}")
     console.print(f"[cyan]Source:[/cyan] {memory.source.value}")
-    console.print(f"[cyan]Importance:[/cyan] {memory.importance} (decayed: {memory.decayed_importance:.1f})")
+    console.print(
+        f"[cyan]Importance:[/cyan] {memory.importance} (decayed: {memory.decayed_importance:.1f})"
+    )
     console.print(f"[cyan]Tags:[/cyan] {', '.join(memory.tags) if memory.tags else '-'}")
     console.print(f"[cyan]Access count:[/cyan] {memory.access_count}")
     if memory.last_accessed_at:
@@ -205,15 +210,15 @@ def delete_memory(
 @app.command("clear")
 def clear_memories(
     tags: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         typer.Option("--tags", "-t", help="Only clear memories with these tags"),
     ] = None,
     memory_type: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--type", "-T", help="Only clear memories of this type"),
     ] = None,
     source: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--source", "-s", help="Only clear memories from this source"),
     ] = None,
     force: Annotated[
@@ -266,24 +271,24 @@ def memory_stats(
 
     console.print(f"[cyan]Total memories:[/cyan] {stats['total']}")
 
-    if stats['total'] == 0:
+    if stats["total"] == 0:
         return
 
     console.print(f"[cyan]Average access count:[/cyan] {stats['avg_access_count']:.1f}")
 
-    if stats['by_type']:
+    if stats["by_type"]:
         console.print("\n[cyan]By type:[/cyan]")
-        for mtype, count in stats['by_type'].items():
+        for mtype, count in stats["by_type"].items():
             console.print(f"  {mtype}: {count}")
 
-    if stats['by_source']:
+    if stats["by_source"]:
         console.print("\n[cyan]By source:[/cyan]")
-        for source, count in stats['by_source'].items():
+        for source, count in stats["by_source"].items():
             console.print(f"  {source}: {count}")
 
-    if stats['by_importance']:
+    if stats["by_importance"]:
         console.print("\n[cyan]By importance:[/cyan]")
-        for imp, count in sorted(stats['by_importance'].items(), reverse=True):
+        for imp, count in sorted(stats["by_importance"].items(), reverse=True):
             console.print(f"  {imp}: {count}")
 
     if show_decay:
@@ -293,7 +298,7 @@ def memory_stats(
         if report:
             console.print("\n[cyan]Decay report (top 20 most decayed):[/cyan]")
             for item in report[:20]:
-                decay_pct = item['decay_percentage']
+                decay_pct = item["decay_percentage"]
                 if decay_pct > 0:
                     console.print(
                         f"  {item['key']}: {item['original_importance']} -> "
@@ -313,7 +318,7 @@ def cleanup_memories(
         typer.Option("--min-importance", "-i", help="Minimum importance threshold (after decay)"),
     ] = 2.0,
     source: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--source", "-s", help="Only cleanup memories from this source"),
     ] = None,
     dry_run: Annotated[
@@ -414,7 +419,9 @@ def consolidate_memories(
 
     if dry_run:
         result = maintenance.consolidate(threshold=threshold, dry_run=True)
-        console.print(f"\n[cyan]Would merge into {len(result.new_memories)} consolidated memories[/cyan]")
+        console.print(
+            f"\n[cyan]Would merge into {len(result.new_memories)} consolidated memories[/cyan]"
+        )
         console.print(f"[cyan]Would delete {len(result.deleted_keys)} memories[/cyan]")
         print_info("Dry run - no changes made")
         return
@@ -427,6 +434,5 @@ def consolidate_memories(
     result = maintenance.consolidate(threshold=threshold, dry_run=False)
 
     print_success(
-        f"Consolidated {result.merged_count} groups, "
-        f"deleted {len(result.deleted_keys)} memories"
+        f"Consolidated {result.merged_count} groups, deleted {len(result.deleted_keys)} memories"
     )

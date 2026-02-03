@@ -51,7 +51,9 @@ class WorkflowConfig:
 
     auto_detect: bool = D.DEFAULT_WORKFLOW_AUTO_DETECT
     detection_threshold: float = D.DEFAULT_WORKFLOW_DETECTION_THRESHOLD
-    default_skip_stages: list[str] = field(default_factory=lambda: D.DEFAULT_WORKFLOW_SKIP_STAGES.copy())
+    default_skip_stages: list[str] = field(
+        default_factory=lambda: D.DEFAULT_WORKFLOW_SKIP_STAGES.copy()
+    )
     interactive: bool = D.DEFAULT_WORKFLOW_INTERACTIVE
 
 

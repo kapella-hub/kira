@@ -11,18 +11,17 @@ import os
 import re
 import shutil
 import subprocess
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import AsyncIterator
-
 
 # ANSI escape code pattern - matches all CSI sequences, OSC sequences, and cursor controls
 ANSI_ESCAPE = re.compile(
     r"\x1b\[[0-9;?]*[a-zA-Z]"  # CSI sequences like [0m, [?25l
-    r"|\x1b\].*?\x07"          # OSC sequences
-    r"|\x1b[()][AB012]"        # Character set selection
-    r"|\r"                      # Carriage return (used in spinners)
+    r"|\x1b\].*?\x07"  # OSC sequences
+    r"|\x1b[()][AB012]"  # Character set selection
+    r"|\r"  # Carriage return (used in spinners)
 )
 
 # Patterns to filter from kiro-cli output
@@ -252,7 +251,7 @@ class KiraClient:
                     if stderr_text:
                         yield f"\n[Error from kiro-cli: {stderr_text}]\n"
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             process.kill()
             await process.wait()
             yield "\n[Error: kiro-cli timed out]\n"
@@ -262,7 +261,7 @@ class KiraClient:
             try:
                 process.terminate()
                 await asyncio.wait_for(process.wait(), timeout=2.0)
-            except (asyncio.TimeoutError, ProcessLookupError):
+            except (TimeoutError, ProcessLookupError):
                 try:
                     process.kill()
                     await process.wait()
@@ -300,7 +299,7 @@ class KiraClient:
 
             return KiraResult(output=output, exit_code=process.returncode or 0)
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return KiraResult(output="[Error: kiro-cli timed out]", exit_code=-1)
 
     def run_sync(
@@ -341,9 +340,7 @@ class KiraClient:
             return None
 
         try:
-            result = subprocess.run(
-                [kiro, "--version"], capture_output=True, text=True, timeout=5
-            )
+            result = subprocess.run([kiro, "--version"], capture_output=True, text=True, timeout=5)
             return result.stdout.strip() if result.returncode == 0 else None
         except (subprocess.TimeoutExpired, OSError):
             return None
@@ -403,13 +400,11 @@ class KiraClient:
         remind_interval_days = 7
 
         # Load previous state
-        last_check = None
         last_reminded = None
         if state_file.exists():
             try:
                 with open(state_file) as f:
                     state = json.load(f)
-                    last_check = datetime.fromisoformat(state.get("last_check", ""))
                     last_reminded = datetime.fromisoformat(state.get("last_reminded", ""))
             except (json.JSONDecodeError, ValueError, KeyError):
                 pass
@@ -447,17 +442,21 @@ class KiraClient:
             "version": version,
             "age_days": age_days,
             "message": f"kiro-cli {version} is {age_days} days old. Run 'kiro-cli update' to check for updates."
-            if should_remind else None,
+            if should_remind
+            else None,
         }
 
         # Save state
         if should_remind:
             state_file.parent.mkdir(parents=True, exist_ok=True)
             with open(state_file, "w") as f:
-                json.dump({
-                    "last_check": now.isoformat(),
-                    "last_reminded": now.isoformat(),
-                    "version": version,
-                }, f)
+                json.dump(
+                    {
+                        "last_check": now.isoformat(),
+                        "last_reminded": now.isoformat(),
+                        "version": version,
+                    },
+                    f,
+                )
 
         return result

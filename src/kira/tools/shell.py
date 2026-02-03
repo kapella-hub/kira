@@ -6,41 +6,91 @@ import asyncio
 import os
 import shlex
 import time
-from pathlib import Path
 
 from .base import BaseTool, registry
 from .models import ToolResult, ToolStatus
 
-
 # Commands that are always allowed
 SAFE_COMMANDS = {
-    "ls", "cat", "head", "tail", "grep", "find", "wc",
-    "echo", "pwd", "which", "whoami", "date", "env",
-    "python", "python3", "pip", "pip3",
-    "node", "npm", "npx", "yarn", "pnpm",
-    "git", "gh",
-    "cargo", "rustc",
+    "ls",
+    "cat",
+    "head",
+    "tail",
+    "grep",
+    "find",
+    "wc",
+    "echo",
+    "pwd",
+    "which",
+    "whoami",
+    "date",
+    "env",
+    "python",
+    "python3",
+    "pip",
+    "pip3",
+    "node",
+    "npm",
+    "npx",
+    "yarn",
+    "pnpm",
+    "git",
+    "gh",
+    "cargo",
+    "rustc",
     "go",
-    "make", "cmake",
-    "docker", "docker-compose",
-    "curl", "wget",
-    "jq", "yq",
-    "sed", "awk", "sort", "uniq", "cut", "tr",
-    "diff", "patch",
-    "tar", "zip", "unzip", "gzip", "gunzip",
-    "tree", "file", "stat",
-    "pytest", "mypy", "ruff", "black", "isort",
+    "make",
+    "cmake",
+    "docker",
+    "docker-compose",
+    "curl",
+    "wget",
+    "jq",
+    "yq",
+    "sed",
+    "awk",
+    "sort",
+    "uniq",
+    "cut",
+    "tr",
+    "diff",
+    "patch",
+    "tar",
+    "zip",
+    "unzip",
+    "gzip",
+    "gunzip",
+    "tree",
+    "file",
+    "stat",
+    "pytest",
+    "mypy",
+    "ruff",
+    "black",
+    "isort",
 }
 
 # Commands that require elevated trust
 DANGEROUS_COMMANDS = {
-    "rm", "rmdir", "mv", "cp",  # File operations
-    "chmod", "chown", "chgrp",  # Permission changes
-    "sudo", "su",  # Privilege escalation
-    "kill", "killall", "pkill",  # Process management
-    "shutdown", "reboot",  # System control
-    "dd", "mkfs", "fdisk",  # Disk operations
-    "iptables", "ufw",  # Network security
+    "rm",
+    "rmdir",
+    "mv",
+    "cp",  # File operations
+    "chmod",
+    "chown",
+    "chgrp",  # Permission changes
+    "sudo",
+    "su",  # Privilege escalation
+    "kill",
+    "killall",
+    "pkill",  # Process management
+    "shutdown",
+    "reboot",  # System control
+    "dd",
+    "mkfs",
+    "fdisk",  # Disk operations
+    "iptables",
+    "ufw",  # Network security
 }
 
 
@@ -109,9 +159,7 @@ class Shell(BaseTool):
             Tool result with command output.
         """
         if not command:
-            return self.make_result(
-                ToolStatus.FAILURE, "", error="command argument required"
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error="command argument required")
 
         start = time.time()
         exec_timeout = timeout or self.timeout
@@ -119,9 +167,7 @@ class Shell(BaseTool):
         # Check command safety
         is_safe, reason = self.is_command_safe(command)
         if not is_safe:
-            return self.make_result(
-                ToolStatus.PERMISSION_DENIED, "", error=reason
-            )
+            return self.make_result(ToolStatus.PERMISSION_DENIED, "", error=reason)
 
         # Dry run mode
         if self.context.dry_run:
@@ -146,7 +192,7 @@ class Shell(BaseTool):
                     process.communicate(),
                     timeout=exec_timeout,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 process.kill()
                 await process.wait()
                 return self.make_result(
@@ -225,9 +271,7 @@ class PythonExec(BaseTool):
             Tool result with execution output.
         """
         if not code:
-            return self.make_result(
-                ToolStatus.FAILURE, "", error="code argument required"
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error="code argument required")
 
         start = time.time()
         exec_timeout = timeout or self.context.timeout_seconds
@@ -235,9 +279,7 @@ class PythonExec(BaseTool):
         # Check trust level
         can_exec, reason = self.can_execute()
         if not can_exec:
-            return self.make_result(
-                ToolStatus.PERMISSION_DENIED, "", error=reason
-            )
+            return self.make_result(ToolStatus.PERMISSION_DENIED, "", error=reason)
 
         # Dry run mode
         if self.context.dry_run:
@@ -250,7 +292,9 @@ class PythonExec(BaseTool):
         try:
             # Execute via subprocess for isolation
             process = await asyncio.create_subprocess_exec(
-                "python3", "-c", code,
+                "python3",
+                "-c",
+                code,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=self.context.working_dir,
@@ -261,7 +305,7 @@ class PythonExec(BaseTool):
                     process.communicate(),
                     timeout=exec_timeout,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 process.kill()
                 await process.wait()
                 return self.make_result(

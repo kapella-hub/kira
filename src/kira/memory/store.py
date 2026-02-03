@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator
 
 from .models import Memory, MemorySource, MemoryType
 
@@ -131,7 +131,9 @@ class MemoryStore:
         # Add new indexes
         conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_source ON memories(source)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_access ON memories(access_count DESC)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_memories_access ON memories(access_count DESC)"
+        )
 
         # Update schema version
         conn.execute("UPDATE schema_version SET version = 2")
@@ -172,7 +174,16 @@ class MemoryStore:
                     memory_type = excluded.memory_type,
                     updated_at = excluded.updated_at
             """,
-                (key, content, json.dumps(tags), importance, memory_type.value, source.value, now, now),
+                (
+                    key,
+                    content,
+                    json.dumps(tags),
+                    importance,
+                    memory_type.value,
+                    source.value,
+                    now,
+                    now,
+                ),
             )
 
             cursor = conn.execute("SELECT * FROM memories WHERE key = ?", (key,))
@@ -216,7 +227,7 @@ class MemoryStore:
             params: list = [query]
 
             if tags:
-                tag_filter = " OR ".join(f'tags LIKE \'%"{tag}"%\'' for tag in tags)
+                tag_filter = " OR ".join(f"tags LIKE '%\"{tag}\"%'" for tag in tags)
                 conditions.append(f"({tag_filter})")
 
             if memory_types:
@@ -277,7 +288,7 @@ class MemoryStore:
             params: list = [min_importance]
 
             if tags:
-                tag_filter = " OR ".join(f'tags LIKE \'%"{tag}"%\'' for tag in tags)
+                tag_filter = " OR ".join(f"tags LIKE '%\"{tag}\"%'" for tag in tags)
                 conditions.append(f"({tag_filter})")
 
             if memory_types:
@@ -360,7 +371,7 @@ class MemoryStore:
             params: list = []
 
             if tags:
-                tag_filter = " OR ".join(f'tags LIKE \'%"{tag}"%\'' for tag in tags)
+                tag_filter = " OR ".join(f"tags LIKE '%\"{tag}\"%'" for tag in tags)
                 conditions.append(f"({tag_filter})")
 
             if memory_types:
@@ -394,7 +405,7 @@ class MemoryStore:
             params: list = []
 
             if tags:
-                tag_filter = " OR ".join(f'tags LIKE \'%"{tag}"%\'' for tag in tags)
+                tag_filter = " OR ".join(f"tags LIKE '%\"{tag}\"%'" for tag in tags)
                 conditions.append(f"({tag_filter})")
 
             if memory_types:
@@ -438,7 +449,7 @@ class MemoryStore:
             params: list = []
 
             if tags:
-                tag_filter = " OR ".join(f'tags LIKE \'%"{tag}"%\'' for tag in tags)
+                tag_filter = " OR ".join(f"tags LIKE '%\"{tag}\"%'" for tag in tags)
                 conditions.append(f"({tag_filter})")
 
             if memory_types:
@@ -485,9 +496,7 @@ class MemoryStore:
                 stats["by_type"][row["memory_type"]] = row["cnt"]
 
             # By source
-            cursor = conn.execute(
-                "SELECT source, COUNT(*) as cnt FROM memories GROUP BY source"
-            )
+            cursor = conn.execute("SELECT source, COUNT(*) as cnt FROM memories GROUP BY source")
             for row in cursor:
                 stats["by_source"][row["source"]] = row["cnt"]
 

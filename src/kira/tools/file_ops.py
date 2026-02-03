@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import os
 import time
 from pathlib import Path
 
 from .base import BaseTool, registry
-from .models import ToolContext, ToolResult, ToolStatus
+from .models import ToolResult, ToolStatus
 
 
 @registry.register
@@ -33,22 +32,16 @@ class ReadFile(BaseTool):
             Tool result with file contents.
         """
         if not path:
-            return self.make_result(
-                ToolStatus.FAILURE, "", error="path argument required"
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error="path argument required")
 
         start = time.time()
         file_path = Path(self.context.working_dir) / path
 
         if not file_path.exists():
-            return self.make_result(
-                ToolStatus.FAILURE, "", error=f"File not found: {path}"
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error=f"File not found: {path}")
 
         if not file_path.is_file():
-            return self.make_result(
-                ToolStatus.FAILURE, "", error=f"Not a file: {path}"
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error=f"Not a file: {path}")
 
         try:
             content = file_path.read_text()
@@ -66,9 +59,7 @@ class ReadFile(BaseTool):
                 error=f"Permission denied: {path}",
             )
         except Exception as e:
-            return self.make_result(
-                ToolStatus.FAILURE, "", error=str(e)
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error=str(e))
 
 
 @registry.register
@@ -96,13 +87,9 @@ class WriteFile(BaseTool):
             Tool result.
         """
         if not path:
-            return self.make_result(
-                ToolStatus.FAILURE, "", error="path argument required"
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error="path argument required")
         if content is None:
-            return self.make_result(
-                ToolStatus.FAILURE, "", error="content argument required"
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error="content argument required")
 
         start = time.time()
         file_path = Path(self.context.working_dir) / path
@@ -110,9 +97,7 @@ class WriteFile(BaseTool):
         # Check trust level
         can_exec, reason = self.can_execute()
         if not can_exec:
-            return self.make_result(
-                ToolStatus.PERMISSION_DENIED, "", error=reason
-            )
+            return self.make_result(ToolStatus.PERMISSION_DENIED, "", error=reason)
 
         # Dry run mode
         if self.context.dry_run:
@@ -145,9 +130,7 @@ class WriteFile(BaseTool):
                 error=f"Permission denied: {path}",
             )
         except Exception as e:
-            return self.make_result(
-                ToolStatus.FAILURE, "", error=str(e)
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error=str(e))
 
 
 @registry.register
@@ -177,32 +160,22 @@ class EditFile(BaseTool):
             Tool result.
         """
         if not path:
-            return self.make_result(
-                ToolStatus.FAILURE, "", error="path argument required"
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error="path argument required")
         if old_text is None:
-            return self.make_result(
-                ToolStatus.FAILURE, "", error="old_text argument required"
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error="old_text argument required")
         if new_text is None:
-            return self.make_result(
-                ToolStatus.FAILURE, "", error="new_text argument required"
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error="new_text argument required")
 
         start = time.time()
         file_path = Path(self.context.working_dir) / path
 
         if not file_path.exists():
-            return self.make_result(
-                ToolStatus.FAILURE, "", error=f"File not found: {path}"
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error=f"File not found: {path}")
 
         # Check trust level
         can_exec, reason = self.can_execute()
         if not can_exec:
-            return self.make_result(
-                ToolStatus.PERMISSION_DENIED, "", error=reason
-            )
+            return self.make_result(ToolStatus.PERMISSION_DENIED, "", error=reason)
 
         try:
             content = file_path.read_text()
@@ -245,9 +218,7 @@ class EditFile(BaseTool):
                 error=f"Permission denied: {path}",
             )
         except Exception as e:
-            return self.make_result(
-                ToolStatus.FAILURE, "", error=str(e)
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error=str(e))
 
 
 @registry.register
@@ -283,9 +254,7 @@ class ListDirectory(BaseTool):
             )
 
         if not dir_path.is_dir():
-            return self.make_result(
-                ToolStatus.FAILURE, "", error=f"Not a directory: {path or '.'}"
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error=f"Not a directory: {path or '.'}")
 
         try:
             entries: list[str] = []
@@ -310,9 +279,7 @@ class ListDirectory(BaseTool):
                 error=f"Permission denied: {path or '.'}",
             )
         except Exception as e:
-            return self.make_result(
-                ToolStatus.FAILURE, "", error=str(e)
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error=str(e))
 
 
 @registry.register
@@ -338,24 +305,18 @@ class DeleteFile(BaseTool):
             Tool result.
         """
         if not path:
-            return self.make_result(
-                ToolStatus.FAILURE, "", error="path argument required"
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error="path argument required")
 
         start = time.time()
         file_path = Path(self.context.working_dir) / path
 
         if not file_path.exists():
-            return self.make_result(
-                ToolStatus.FAILURE, "", error=f"File not found: {path}"
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error=f"File not found: {path}")
 
         # Check trust level
         can_exec, reason = self.can_execute()
         if not can_exec:
-            return self.make_result(
-                ToolStatus.PERMISSION_DENIED, "", error=reason
-            )
+            return self.make_result(ToolStatus.PERMISSION_DENIED, "", error=reason)
 
         # Dry run mode
         if self.context.dry_run:
@@ -370,6 +331,7 @@ class DeleteFile(BaseTool):
                 file_path.unlink()
             elif file_path.is_dir():
                 import shutil
+
                 shutil.rmtree(file_path)
 
             result = self.make_result(
@@ -387,6 +349,4 @@ class DeleteFile(BaseTool):
                 error=f"Permission denied: {path}",
             )
         except Exception as e:
-            return self.make_result(
-                ToolStatus.FAILURE, "", error=str(e)
-            )
+            return self.make_result(ToolStatus.FAILURE, "", error=str(e))
