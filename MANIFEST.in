@@ -1,0 +1,4 @@
+include LICENSE
+include README.md
+recursive-include src/kira/skills/builtin *.yaml
+recursive-include src/kira/rules/builtin *.yaml
