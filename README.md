@@ -66,6 +66,7 @@ The prompt shows:
 /help                  # Show all commands
 /model opus            # Switch model (fast, smart, opus)
 /memory on|off         # Toggle memory
+/project               # Show project knowledge (shared)
 /thinking on|off       # Toggle deep reasoning
 /config                # Show all settings
 /status                # System status
@@ -73,7 +74,12 @@ The prompt shows:
 
 ## Memory System
 
-Kira remembers important information across sessions.
+Kira has two memory systems:
+
+| Type | Storage | Shared | Use Case |
+|------|---------|--------|----------|
+| **Personal** | `~/.kira/memory.db` | No | Your preferences, learnings |
+| **Project** | `.kira/project-memory.yaml` | Yes (git) | Team knowledge |
 
 ### Memory Types
 
@@ -109,8 +115,9 @@ kira memory consolidate             # Merge similar memories
 
 Memories are automatically extracted from responses:
 
-1. **Explicit markers**: `[REMEMBER:key] content`
-2. **Pattern detection**: Decisions, solutions, important notes
+1. **Personal markers**: `[REMEMBER:key] content` → saved to `~/.kira/memory.db`
+2. **Project markers**: `[PROJECT:key] content` → saved to `.kira/project-memory.yaml`
+3. **Pattern detection**: Decisions, solutions, important notes
 
 ### Decay & Relevance
 
@@ -120,7 +127,29 @@ Memories are automatically extracted from responses:
 
 ## Team Context
 
-Share project knowledge with your team via `.kira/context.md`:
+Share project knowledge with your team via git-tracked files in `.kira/`:
+
+### Project Memory (`.kira/project-memory.yaml`)
+
+Shared knowledge that persists across the team:
+
+```bash
+# In REPL
+/project               # Show project knowledge
+/project add key text  # Add project memory
+/project search query  # Search project memories
+/project init          # Initialize project memory
+```
+
+**Auto-save with markers:**
+```
+[PROJECT:api:auth] This project uses JWT with refresh token rotation
+[PROJECT:db:schema] Users table has soft deletes via deleted_at column
+```
+
+### Project Context (`.kira/context.md`)
+
+Auto-analyzed project structure and notes:
 
 ```bash
 # In REPL
@@ -131,7 +160,17 @@ Share project knowledge with your team via `.kira/context.md`:
 /context log           # Show change history
 ```
 
-The context file is git-tracked, so team knowledge is shared automatically.
+### Storage
+
+```
+.kira/
+├── project-memory.yaml  # Team knowledge (commit this!)
+├── context.md           # Project analysis (commit this!)
+├── changelog.md         # Change history (commit this!)
+└── config.yaml          # Project config (optional)
+```
+
+All `.kira/` files are git-tracked, so team knowledge syncs automatically.
 
 ## Skills
 
@@ -236,11 +275,12 @@ Project config (`.kira/config.yaml`) overrides user config.
 
 ## How It Works
 
-1. **Memory Injection**: Relevant memories prepended to prompt
-2. **Context Loading**: Team knowledge from `.kira/context.md`
-3. **Skill Activation**: Selected skill prompts included
-4. **kiro-cli Execution**: Full prompt sent to kiro-cli
-5. **Memory Extraction**: Responses scanned for learnable content
+1. **Memory Injection**: Personal memories from `~/.kira/memory.db`
+2. **Project Memory**: Team knowledge from `.kira/project-memory.yaml`
+3. **Context Loading**: Project analysis from `.kira/context.md`
+4. **Skill Activation**: Selected skill prompts included
+5. **kiro-cli Execution**: Full prompt sent to kiro-cli
+6. **Memory Extraction**: Responses scanned for `[REMEMBER:]` and `[PROJECT:]` markers
 
 kiro-cli handles:
 - LLM interaction

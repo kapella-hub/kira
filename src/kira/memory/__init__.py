@@ -10,12 +10,15 @@ from .maintenance import (
     MemoryMaintenance,
 )
 from .models import ExtractedMemory, Memory, MemorySource, MemoryType
+from .project_store import ProjectMemoryStore, get_project_memory
 from .relevance import RelevanceScorer, get_relevant_memories
 from .store import MemoryStore
 
 __all__ = [
     # Store
     "MemoryStore",
+    "ProjectMemoryStore",
+    "get_project_memory",
     # Models
     "Memory",
     "MemoryType",

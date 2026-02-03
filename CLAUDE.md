@@ -163,6 +163,18 @@ Agent can output `[REMEMBER:key] content` markers which are automatically extrac
 saved = session_manager.save_memories(response)
 ```
 
+### Project Memory (Team Sharing)
+Project-specific knowledge is stored in `.kira/project-memory.yaml` and shared via git:
+- Use `[PROJECT:key] content` markers to save project knowledge
+- REPL commands: `/project`, `/project add`, `/project search`
+- Automatically loaded when working in a project with `.kira/` directory
+- Human-readable YAML format for easy review and merge
+
+Example marker in agent output:
+```
+[PROJECT:api:auth] This project uses JWT tokens with refresh token rotation
+```
+
 ### Skills
 Skills are YAML files with name, description, and prompt. Loaded from:
 1. `src/kira/skills/builtin/` (shipped with package)
@@ -181,7 +193,9 @@ CodingTaskDetector uses aggressive regex patterns to identify coding tasks:
 
 User config: `~/.kira/config.yaml`
 Project config: `.kira/agent.yaml`
-Memory DB: `~/.kira/memory.db`
+User memory: `~/.kira/memory.db` (personal, not shared)
+Project memory: `.kira/project-memory.yaml` (shared via git)
+Project context: `.kira/context.md` (shared via git)
 
 ```yaml
 # Example config
@@ -269,6 +283,7 @@ When in interactive mode, you can use these commands:
 - `/skill <name>` - Activate a skill
 - `/skills` - List available skills
 - `/memory` - Show memory stats
+- `/project` - Show project knowledge (shared via git)
 - `/status` - Show system status
 
 **Model Selection Example:**

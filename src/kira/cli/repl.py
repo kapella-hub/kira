@@ -60,7 +60,7 @@ PROMPT_STYLE = Style.from_dict({
 COMMANDS = [
     "/help", "/exit", "/quit", "/clear",
     "/model", "/config", "/skill", "/skills",
-    "/memory", "/learned", "/thinking", "/autonomous", "/personality",
+    "/memory", "/learned", "/project", "/thinking", "/autonomous", "/personality",
     "/verbose", "/trust", "/timeout",
     "/status", "/compact", "/history",
     "/context", "/logs", "/cd", "/view",
@@ -71,6 +71,9 @@ CONTEXT_COMMANDS = ["refresh", "note", "log", "issue", "save", "show"]
 
 # Memory subcommands for completion
 MEMORY_COMMANDS = ["on", "off", "stats", "decay"]
+
+# Project memory subcommands
+PROJECT_COMMANDS = ["list", "add", "search"]
 
 CONFIG_KEYS = [
     "model", "memory", "thinking", "autonomous",
@@ -335,6 +338,9 @@ class InteractiveREPL:
             ("/memory decay", "Show decay report"),
             ("/learned", "Show recently auto-learned memories"),
             ("/memory on|off", "Toggle memory"),
+            ("/project", "Show project knowledge (shared via git)"),
+            ("/project add <key> <content>", "Add project memory"),
+            ("/project search <query>", "Search project memories"),
         ]
 
         for cmd, desc in memory_cmds:
@@ -495,6 +501,9 @@ class InteractiveREPL:
         elif command == "/view":
             self._view_file(args)
 
+        elif command == "/project":
+            self._handle_project(args)
+
         else:
             self._print_warning(f"Unknown command: {command}")
             self.console.print(f"[{COLORS['muted']}]Type /help for available commands[/]")
@@ -650,7 +659,7 @@ class InteractiveREPL:
 
         store = MemoryStore()
         # Get auto-extracted memories
-        memories = store.list_all(source=MemorySource.AUTO, limit=10)
+        memories = store.list_all(source=MemorySource.EXTRACTED, limit=10)
 
         if not memories:
             self.console.print(f"[{COLORS['muted']}]No auto-learned memories yet[/]")
@@ -706,6 +715,121 @@ class InteractiveREPL:
         self.console.print(table)
         self.console.print()
         self.console.print(f"[{COLORS['muted']}]Run 'kira memory cleanup --dry-run' to preview cleanup[/]")
+
+    def _handle_project(self, args: str) -> None:
+        """Handle /project command for project-local shared memory."""
+        from ..memory.project_store import ProjectMemoryStore
+
+        parts = args.split(maxsplit=1)
+        subcommand = parts[0].lower() if parts else ""
+        subargs = parts[1] if len(parts) > 1 else ""
+
+        project_memory = ProjectMemoryStore(Path.cwd())
+
+        if not subcommand or subcommand == "list":
+            self._show_project_memories(project_memory)
+        elif subcommand == "add":
+            self._add_project_memory(project_memory, subargs)
+        elif subcommand == "search":
+            self._search_project_memories(project_memory, subargs)
+        elif subcommand == "init":
+            self._init_project_memory(project_memory)
+        else:
+            self._print_warning(f"Unknown subcommand: {subcommand}")
+            self.console.print(f"[{COLORS['muted']}]Usage: /project [list|add|search|init][/]")
+
+    def _show_project_memories(self, store) -> None:
+        """Show project memories (shared with team)."""
+        if not store.exists():
+            self.console.print(f"[{COLORS['muted']}]No project memory file found[/]")
+            self.console.print(f"[{COLORS['muted']}]Use '/project init' to create .kira/project-memory.yaml[/]")
+            self.console.print()
+            self.console.print(f"[{COLORS['primary']}]Project memories are shared with your team via git.[/]")
+            self.console.print(f"[{COLORS['muted']}]Mark learnings with [PROJECT:key] to save them.[/]")
+            return
+
+        memories = store.list_all()
+
+        if not memories:
+            self.console.print(f"[{COLORS['muted']}]No project memories yet[/]")
+            self.console.print(f"[{COLORS['muted']}]Mark learnings with [PROJECT:key] to save them[/]")
+            return
+
+        self.console.print(f"[{COLORS['primary']}]Project Knowledge[/] (shared via git)")
+        self.console.print()
+
+        table = Table(show_header=True, header_style=f"bold {COLORS['primary']}", box=ROUNDED)
+        table.add_column("Key", style="bold", max_width=25)
+        table.add_column("Content", max_width=50)
+        table.add_column("Imp", justify="right", width=4)
+        table.add_column("Tags", max_width=20)
+
+        for mem in memories[:15]:
+            content = mem.content[:47] + "..." if len(mem.content) > 50 else mem.content
+            tags = ", ".join(mem.tags[:3]) if mem.tags else "-"
+            table.add_row(
+                mem.key[:25],
+                content,
+                str(mem.importance),
+                tags,
+            )
+
+        self.console.print(table)
+        self.console.print()
+        self.console.print(f"[{COLORS['muted']}]File: .kira/project-memory.yaml (commit to share)[/]")
+
+    def _add_project_memory(self, store, args: str) -> None:
+        """Add a project memory manually."""
+        if not args:
+            self.console.print(f"[{COLORS['muted']}]Usage: /project add <key> <content>[/]")
+            self.console.print(f"[{COLORS['muted']}]Example: /project add auth:pattern We use JWT tokens for auth[/]")
+            return
+
+        parts = args.split(maxsplit=1)
+        if len(parts) < 2:
+            self._print_warning("Both key and content are required")
+            return
+
+        key, content = parts
+        store.store(key=key, content=content, importance=6)
+        self._print_success(f"Added project memory: {key}")
+        self.console.print(f"[{COLORS['muted']}]Commit .kira/project-memory.yaml to share[/]")
+
+    def _search_project_memories(self, store, query: str) -> None:
+        """Search project memories."""
+        if not query:
+            self.console.print(f"[{COLORS['muted']}]Usage: /project search <query>[/]")
+            return
+
+        if not store.exists():
+            self.console.print(f"[{COLORS['muted']}]No project memory file found[/]")
+            return
+
+        results = store.search(query, limit=10)
+
+        if not results:
+            self.console.print(f"[{COLORS['muted']}]No matches found[/]")
+            return
+
+        self.console.print(f"[{COLORS['primary']}]Search Results:[/] {query}")
+        self.console.print()
+
+        for mem in results:
+            content = mem.content[:60] + "..." if len(mem.content) > 60 else mem.content
+            self.console.print(f"  [{COLORS['secondary']}]{mem.key}[/]")
+            self.console.print(f"    {content}")
+            self.console.print()
+
+    def _init_project_memory(self, store) -> None:
+        """Initialize project memory file."""
+        if store.exists():
+            self.console.print(f"[{COLORS['muted']}]Project memory already exists[/]")
+            return
+
+        store.ensure_dir()
+        store.save()  # Create empty file
+        self._print_success("Created .kira/project-memory.yaml")
+        self.console.print(f"[{COLORS['muted']}]Add to git: git add .kira/project-memory.yaml[/]")
 
     def _handle_config(self, args: str) -> None:
         """Handle /config command."""

@@ -13,6 +13,7 @@ from pathlib import Path
 from ..context import ContextManager
 from ..memory.extractor import MemoryExtractor
 from ..memory.models import MemorySource, MemoryType
+from ..memory.project_store import ProjectMemoryStore
 from ..memory.store import MemoryStore
 from ..skills.manager import SkillManager
 from .personality import Personality, get_personality
@@ -26,7 +27,8 @@ class Session:
     started_at: datetime
     working_dir: Path
     memory_context: str = ""
-    project_context: str = ""  # Shared team context
+    project_context: str = ""  # Shared team context from .kira/context.md
+    project_memory_context: str = ""  # Shared team memory from .kira/project-memory.yaml
     active_skills: list[str] = field(default_factory=list)
     skill_prompts: dict[str, str] = field(default_factory=dict)
     personality: Personality | None = None
@@ -42,12 +44,17 @@ REMEMBER_PATTERN = re.compile(
     r"\[REMEMBER:([^\]]+)\]\s*(.+?)(?=\[REMEMBER:|$)", re.DOTALL
 )
 
+# Pattern for project memory (shared with team)
+PROJECT_PATTERN = re.compile(
+    r"\[PROJECT:([^\]]+)\]\s*(.+?)(?=\[PROJECT:|$)", re.DOTALL
+)
+
 
 class SessionManager:
     """Manages conversation sessions with memory injection.
 
     Before each kiro-cli invocation, we:
-    1. Load relevant memories
+    1. Load relevant memories (user-local and project-local)
     2. Load active skills
     3. Build the context prefix
     """
@@ -56,9 +63,11 @@ class SessionManager:
         self,
         memory_store: MemoryStore | None = None,
         skill_manager: SkillManager | None = None,
+        project_memory: ProjectMemoryStore | None = None,
     ):
         self.memory = memory_store or MemoryStore()
         self.skills = skill_manager or SkillManager()
+        self.project_memory = project_memory  # Set per-session based on working dir
         self._current: Session | None = None
 
     def start(
@@ -86,12 +95,21 @@ class SessionManager:
                 min_importance=min_importance,
             )
 
-        # Load project context (shared team context)
+        # Load project context (shared team context from .kira/context.md)
         project_context = ""
         if context_manager is None:
             context_manager = ContextManager(work_dir)
         if context_manager.exists():
             project_context = context_manager.get_prompt_context()
+
+        # Load project memory (shared team knowledge from .kira/project-memory.yaml)
+        project_memory_context = ""
+        self.project_memory = ProjectMemoryStore(work_dir)
+        if self.project_memory.exists():
+            project_memory_context = self.project_memory.get_context(
+                max_tokens=max_context_tokens // 2,  # Share budget with user memory
+                min_importance=min_importance,
+            )
 
         # Load skill prompts
         skill_prompts: dict[str, str] = {}
@@ -107,6 +125,7 @@ class SessionManager:
             working_dir=work_dir,
             memory_context=memory_context,
             project_context=project_context,
+            project_memory_context=project_memory_context,
             active_skills=skills or [],
             skill_prompts=skill_prompts,
             personality=personality or get_personality(),
@@ -146,14 +165,19 @@ class SessionManager:
                 parts.append(self._current.personality.get_system_prompt())
             parts.append("---")
 
-        # Add project context (shared team knowledge)
+        # Add project context (shared team knowledge from .kira/context.md)
         if self._current.project_context:
             parts.append("## Project Context\n\n" + self._current.project_context)
             parts.append("---")
 
-        # Add memory context if available
+        # Add project memory (shared team knowledge from .kira/project-memory.yaml)
+        if self._current.project_memory_context:
+            parts.append(self._current.project_memory_context)
+            parts.append("---")
+
+        # Add user memory context if available
         if self._current.memory_context:
-            parts.append("## Relevant Memory\n\n" + self._current.memory_context)
+            parts.append("## Your Memory\n\n" + self._current.memory_context)
             parts.append("---")
 
         # Add skill prompts
@@ -301,3 +325,77 @@ class SessionManager:
     ) -> list:
         """Search memories."""
         return self.memory.search(query, tags=tags, limit=limit)
+
+    def extract_project_memories(self, response: str) -> list[tuple[str, str]]:
+        """Extract project memories from agent response.
+
+        Looks for explicit project memory markers:
+        [PROJECT:key] content to share with team
+        """
+        matches = PROJECT_PATTERN.findall(response)
+        return [(key.strip(), content.strip()) for key, content in matches]
+
+    def save_project_memory(
+        self,
+        key: str,
+        content: str,
+        tags: list[str] | None = None,
+        importance: int = 6,
+        memory_type: MemoryType = MemoryType.SEMANTIC,
+    ) -> bool:
+        """Save a memory to project store (shared with team).
+
+        These memories are stored in .kira/project-memory.yaml
+        and can be committed to git.
+        """
+        if not self.project_memory:
+            return False
+
+        self.project_memory.store(
+            key=key,
+            content=content,
+            tags=tags or [],
+            importance=importance,
+            memory_type=memory_type,
+        )
+        return True
+
+    def save_all_memories(
+        self,
+        response: str,
+        prompt: str = "",
+        default_importance: int = 7,
+        default_tags: list[str] | None = None,
+        auto_extract: bool = True,
+    ) -> tuple[int, int]:
+        """Save both user and project memories from response.
+
+        Returns (user_memories_saved, project_memories_saved).
+        """
+        user_saved = self.save_memories(
+            response, prompt, default_importance, default_tags, auto_extract
+        )
+
+        # Extract and save project memories
+        project_saved = 0
+        project_memories = self.extract_project_memories(response)
+
+        for key, content in project_memories:
+            # Parse importance from key if provided
+            parts = key.rsplit(":", 1)
+            importance = 6
+            if len(parts) == 2 and parts[1].isdigit():
+                key = parts[0]
+                importance = int(parts[1])
+
+            # Determine tags from key prefix
+            tags = list(default_tags or [])
+            if ":" in key:
+                category = key.split(":")[0]
+                if category not in tags:
+                    tags.append(category)
+
+            if self.save_project_memory(key, content, tags=tags, importance=importance):
+                project_saved += 1
+
+        return user_saved, project_saved
