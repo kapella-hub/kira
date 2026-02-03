@@ -13,6 +13,7 @@ from .models import (
     Critique,
     RefinedPlan,
     Approach,
+    Verification,
 )
 from .planner import ThinkingPlanner
 from .executor import ThinkingExecutor
@@ -32,6 +33,7 @@ __all__ = [
     "Critique",
     "RefinedPlan",
     "Approach",
+    "Verification",
     # Legacy (simple two-phase)
     "ThinkingPlanner",
     "ThinkingExecutor",

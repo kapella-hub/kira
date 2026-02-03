@@ -22,10 +22,31 @@ from .models import (
     TaskUnderstanding,
     ThinkingPhase,
     ThinkingResult,
+    Verification,
 )
 
 if TYPE_CHECKING:
     from ..core.client import KiraClient
+    from ..memory.store import MemoryStore
+
+
+# Phase-specific model recommendations
+# Simpler phases use faster models, critical phases use best models
+PHASE_MODELS = {
+    ThinkingPhase.UNDERSTAND: "fast",    # Quick comprehension
+    ThinkingPhase.EXPLORE: "smart",      # Needs creativity
+    ThinkingPhase.ANALYZE: "smart",      # Balanced analysis
+    ThinkingPhase.PLAN: "smart",         # Structured planning
+    ThinkingPhase.CRITIQUE: "best",      # Critical evaluation needs depth
+    ThinkingPhase.REFINE: "best",        # Final refinement needs quality
+    ThinkingPhase.VERIFY: "smart",       # Systematic check
+}
+
+# Confidence threshold for loop-back
+CONFIDENCE_LOOP_BACK_THRESHOLD = 0.5  # If critique < 50%, re-explore
+
+# Maximum loop-back iterations to prevent infinite loops
+MAX_LOOP_BACKS = 2
 
 
 class DeepReasoning:
@@ -38,6 +59,14 @@ class DeepReasoning:
     4. PLAN - Create detailed execution plan
     5. CRITIQUE - Self-critique the plan
     6. REFINE - Improve based on critique
+    7. VERIFY - Validate plan against requirements (new)
+
+    Features:
+    - Adaptive phases: Skips exploration/critique for trivial tasks
+    - Confidence loop-back: Re-explores if critique finds low confidence
+    - Phase-specific models: Uses appropriate models per phase
+    - Memory-informed: Pulls relevant past reasoning from memory
+    - Streaming output: Shows each phase as it completes
     """
 
     def __init__(
@@ -45,16 +74,98 @@ class DeepReasoning:
         kiro_client: "KiraClient",
         console: Console | None = None,
         verbose: bool = True,
+        memory_store: "MemoryStore | None" = None,
+        use_phase_models: bool = True,
     ):
         self.client = kiro_client
         self.console = console or Console()
         self.verbose = verbose
+        self.memory = memory_store
+        self.use_phase_models = use_phase_models
+        self._original_model = kiro_client.model
+
+    def _set_phase_model(self, phase: ThinkingPhase) -> None:
+        """Set the model appropriate for this phase."""
+        if not self.use_phase_models:
+            return
+
+        model_tier = PHASE_MODELS.get(phase, "smart")
+        # Map tier to actual model name
+        model_map = {
+            "fast": "claude-3-haiku",
+            "smart": "claude-sonnet-4",
+            "best": "claude-opus-4",
+        }
+        self.client.model = model_map.get(model_tier, self._original_model)
+
+    def _restore_model(self) -> None:
+        """Restore the original model setting."""
+        self.client.model = self._original_model
+
+    def _get_memory_context(self, task: str) -> str:
+        """Pull relevant past reasoning from memory."""
+        if not self.memory:
+            return ""
+
+        try:
+            # Search for similar past tasks
+            memories = self.memory.search(task, tags=["reasoning", "plan"], limit=3)
+            if not memories:
+                return ""
+
+            context_parts = ["## Past Reasoning (similar tasks)\n"]
+            for mem in memories:
+                context_parts.append(f"- {mem.key}: {mem.content[:200]}...")
+
+            return "\n".join(context_parts)
+        except Exception:
+            return ""
+
+    def _detect_trivial_task(self, task: str) -> bool:
+        """Detect if a task is trivial (should skip exploration/critique).
+
+        Only returns True for VERY simple tasks like:
+        - Single-line fixes
+        - Simple questions
+        - Typo corrections
+        - Adding a single log statement
+        """
+        task_lower = task.lower()
+
+        # Trivial indicators (must match multiple)
+        trivial_patterns = [
+            r"\b(typo|spelling|rename)\b",
+            r"\b(add|remove)\s+(a\s+)?(log|print|console)\b",
+            r"\b(what|where|how)\s+(is|are|does)\b",  # Simple questions
+            r"^(fix|change|update)\s+\w+\s+to\s+\w+$",  # Simple substitutions
+        ]
+
+        # Complex indicators (any match = not trivial)
+        complex_patterns = [
+            r"\b(implement|design|architect|build|create|develop)\b",
+            r"\b(refactor|optimize|improve|enhance)\b",
+            r"\b(api|database|auth|security)\b",
+            r"\b(multiple|several|many|all)\b",
+            r"\b(system|service|module|component)\b",
+        ]
+
+        # Check for complexity first
+        for pattern in complex_patterns:
+            if re.search(pattern, task_lower):
+                return False
+
+        # Count trivial indicators
+        trivial_count = sum(1 for p in trivial_patterns if re.search(p, task_lower))
+
+        # Must have at least 1 trivial indicator AND short task
+        return trivial_count >= 1 and len(task.split()) < 15
 
     async def think(
         self,
         task: str,
         context: str = "",
         on_phase_complete: Callable[[ThinkingPhase, str], None] | None = None,
+        force_full: bool = False,  # Force all phases even for simple tasks
     ) -> ThinkingResult:
         """Run the complete thinking process.
 
@@ -62,6 +173,7 @@ class DeepReasoning:
             task: The task to think about
             context: Additional context (e.g., memory, codebase info)
             on_phase_complete: Callback when each phase completes
+            force_full: If True, runs all phases regardless of complexity
 
         Returns:
             Complete ThinkingResult with all phases
@@ -69,63 +181,164 @@ class DeepReasoning:
         start_time = time.time()
         result = ThinkingResult(task=task)
 
-        # Phase 1: Understand
-        if self.verbose:
-            self.console.print("\n[bold cyan]Phase 1: Understanding the task...[/bold cyan]")
-        result.understanding = await self._phase_understand(task, context)
-        result.phases_completed.append(ThinkingPhase.UNDERSTAND)
-        if on_phase_complete:
-            on_phase_complete(ThinkingPhase.UNDERSTAND, result.understanding.raw_output)
-        if self.verbose:
-            self._display_understanding(result.understanding)
+        # Enhance context with memory-informed reasoning
+        memory_context = self._get_memory_context(task)
+        if memory_context:
+            context = f"{context}\n\n{memory_context}" if context else memory_context
 
-        # Phase 2: Explore
-        if self.verbose:
-            self.console.print("\n[bold cyan]Phase 2: Exploring approaches...[/bold cyan]")
-        result.exploration = await self._phase_explore(task, result.understanding, context)
-        result.phases_completed.append(ThinkingPhase.EXPLORE)
-        if on_phase_complete:
-            on_phase_complete(ThinkingPhase.EXPLORE, result.exploration.raw_output)
-        if self.verbose:
-            self._display_exploration(result.exploration)
+        # Detect if task is trivial (very simple)
+        is_trivial = not force_full and self._detect_trivial_task(task)
+        if is_trivial:
+            result.was_simplified = True
+            if self.verbose:
+                self.console.print(
+                    "[dim]Task detected as trivial - using simplified reasoning[/dim]"
+                )
 
-        # Phase 3: Analyze
-        if self.verbose:
-            self.console.print("\n[bold cyan]Phase 3: Analyzing approaches...[/bold cyan]")
-        result.analysis = await self._phase_analyze(
-            task, result.understanding, result.exploration, context
-        )
-        result.phases_completed.append(ThinkingPhase.ANALYZE)
-        if on_phase_complete:
-            on_phase_complete(ThinkingPhase.ANALYZE, result.analysis.raw_output)
-        if self.verbose:
-            self._display_analysis(result.analysis)
+        try:
+            # Phase 1: Understand (always runs)
+            self._set_phase_model(ThinkingPhase.UNDERSTAND)
+            if self.verbose:
+                self.console.print("\n[bold cyan]Phase 1: Understanding the task...[/bold cyan]")
+            result.understanding = await self._phase_understand(task, context)
+            result.phases_completed.append(ThinkingPhase.UNDERSTAND)
+            if on_phase_complete:
+                on_phase_complete(ThinkingPhase.UNDERSTAND, result.understanding.raw_output)
+            if self.verbose:
+                self._display_understanding(result.understanding)
 
-        # Phase 4: Plan
-        if self.verbose:
-            self.console.print("\n[bold cyan]Phase 4: Creating execution plan...[/bold cyan]")
-        result.initial_plan = await self._phase_plan(
-            task, result.understanding, result.analysis, context
-        )
-        result.phases_completed.append(ThinkingPhase.PLAN)
-        if on_phase_complete:
-            on_phase_complete(ThinkingPhase.PLAN, result.initial_plan.raw_output)
-        if self.verbose:
-            self._display_plan(result.initial_plan)
+            if is_trivial:
+                # Simplified path: UNDERSTAND → PLAN only
+                self._set_phase_model(ThinkingPhase.PLAN)
+                if self.verbose:
+                    self.console.print("\n[bold cyan]Phase 2: Creating execution plan...[/bold cyan]")
 
-        # Phase 5: Critique
-        if self.verbose:
-            self.console.print("\n[bold cyan]Phase 5: Self-critique...[/bold cyan]")
-        result.critique = await self._phase_critique(
-            task, result.initial_plan, result.understanding, context
-        )
-        result.phases_completed.append(ThinkingPhase.CRITIQUE)
-        if on_phase_complete:
-            on_phase_complete(ThinkingPhase.CRITIQUE, result.critique.raw_output)
-        if self.verbose:
-            self._display_critique(result.critique)
+                # Create a simple analysis for the plan phase
+                simple_analysis = Analysis(
+                    chosen_approach="Direct implementation",
+                    detailed_reasoning="Task is straightforward - proceeding with direct implementation.",
+                    raw_output="",
+                )
+                result.initial_plan = await self._phase_plan(
+                    task, result.understanding, simple_analysis, context
+                )
+                result.phases_completed.append(ThinkingPhase.PLAN)
+                if on_phase_complete:
+                    on_phase_complete(ThinkingPhase.PLAN, result.initial_plan.raw_output)
+                if self.verbose:
+                    self._display_plan(result.initial_plan)
+
+                # Set refined plan to initial plan for trivial tasks
+                result.refined_plan = RefinedPlan(
+                    original_plan=result.initial_plan,
+                    final_steps=result.initial_plan.steps,
+                    final_summary=result.initial_plan.summary,
+                    confidence_score=0.9,
+                    raw_output="",
+                )
+
+            else:
+                # Full reasoning path with potential loop-back
+                await self._run_full_reasoning(task, context, result, on_phase_complete)
+
+            result.total_thinking_time = time.time() - start_time
+            return result
+
+        finally:
+            self._restore_model()
+
+    async def _run_full_reasoning(
+        self,
+        task: str,
+        context: str,
+        result: ThinkingResult,
+        on_phase_complete: Callable[[ThinkingPhase, str], None] | None,
+    ) -> None:
+        """Run full reasoning with potential loop-back on low confidence."""
+        loop_back_count = 0
+
+        while True:
+            # Phase 2: Explore
+            self._set_phase_model(ThinkingPhase.EXPLORE)
+            if self.verbose:
+                phase_num = 2 + (loop_back_count * 4)  # Adjust numbering on loop-back
+                self.console.print(f"\n[bold cyan]Phase {phase_num}: Exploring approaches...[/bold cyan]")
+            result.exploration = await self._phase_explore(task, result.understanding, context)
+            if ThinkingPhase.EXPLORE not in result.phases_completed:
+                result.phases_completed.append(ThinkingPhase.EXPLORE)
+            if on_phase_complete:
+                on_phase_complete(ThinkingPhase.EXPLORE, result.exploration.raw_output)
+            if self.verbose:
+                self._display_exploration(result.exploration)
+
+            # Phase 3: Analyze
+            self._set_phase_model(ThinkingPhase.ANALYZE)
+            if self.verbose:
+                phase_num = 3 + (loop_back_count * 4)
+                self.console.print(f"\n[bold cyan]Phase {phase_num}: Analyzing approaches...[/bold cyan]")
+            result.analysis = await self._phase_analyze(
+                task, result.understanding, result.exploration, context
+            )
+            if ThinkingPhase.ANALYZE not in result.phases_completed:
+                result.phases_completed.append(ThinkingPhase.ANALYZE)
+            if on_phase_complete:
+                on_phase_complete(ThinkingPhase.ANALYZE, result.analysis.raw_output)
+            if self.verbose:
+                self._display_analysis(result.analysis)
+
+            # Phase 4: Plan
+            self._set_phase_model(ThinkingPhase.PLAN)
+            if self.verbose:
+                phase_num = 4 + (loop_back_count * 4)
+                self.console.print(f"\n[bold cyan]Phase {phase_num}: Creating execution plan...[/bold cyan]")
+            result.initial_plan = await self._phase_plan(
+                task, result.understanding, result.analysis, context
+            )
+            if ThinkingPhase.PLAN not in result.phases_completed:
+                result.phases_completed.append(ThinkingPhase.PLAN)
+            if on_phase_complete:
+                on_phase_complete(ThinkingPhase.PLAN, result.initial_plan.raw_output)
+            if self.verbose:
+                self._display_plan(result.initial_plan)
+
+            # Phase 5: Critique
+            self._set_phase_model(ThinkingPhase.CRITIQUE)
+            if self.verbose:
+                phase_num = 5 + (loop_back_count * 4)
+                self.console.print(f"\n[bold cyan]Phase {phase_num}: Self-critique...[/bold cyan]")
+            result.critique = await self._phase_critique(
+                task, result.initial_plan, result.understanding, context
+            )
+            if ThinkingPhase.CRITIQUE not in result.phases_completed:
+                result.phases_completed.append(ThinkingPhase.CRITIQUE)
+            if on_phase_complete:
+                on_phase_complete(ThinkingPhase.CRITIQUE, result.critique.raw_output)
+            if self.verbose:
+                self._display_critique(result.critique)
+
+            # Check if we need to loop back due to low confidence
+            if (
+                result.critique.confidence_score < CONFIDENCE_LOOP_BACK_THRESHOLD
+                and loop_back_count < MAX_LOOP_BACKS
+            ):
+                loop_back_count += 1
+                result.loop_back_count = loop_back_count
+                if self.verbose:
+                    self.console.print(
+                        f"\n[bold yellow]⚠ Low confidence ({result.critique.confidence_score:.0%}) - "
+                        f"looping back to explore alternatives (attempt {loop_back_count}/{MAX_LOOP_BACKS})[/bold yellow]"
+                    )
+                # Add critique feedback to context for next iteration
+                context = f"{context}\n\n## Previous Critique (improve on this)\n"
+                context += f"Weaknesses: {', '.join(result.critique.weaknesses)}\n"
+                context += f"Blind spots: {', '.join(result.critique.blind_spots)}\n"
+                continue  # Loop back to EXPLORE
+
+            # Confidence is acceptable or max loop-backs reached
+            break
 
         # Phase 6: Refine
+        self._set_phase_model(ThinkingPhase.REFINE)
         if self.verbose:
             self.console.print("\n[bold cyan]Phase 6: Refining plan...[/bold cyan]")
         result.refined_plan = await self._phase_refine(
@@ -137,9 +350,18 @@ class DeepReasoning:
         if self.verbose:
             self._display_refined_plan(result.refined_plan)
 
-        result.total_thinking_time = time.time() - start_time
-
-        return result
+        # Phase 7: Verify (new)
+        self._set_phase_model(ThinkingPhase.VERIFY)
+        if self.verbose:
+            self.console.print("\n[bold cyan]Phase 7: Verifying against requirements...[/bold cyan]")
+        result.verification = await self._phase_verify(
+            task, result.understanding, result.refined_plan, context
+        )
+        result.phases_completed.append(ThinkingPhase.VERIFY)
+        if on_phase_complete:
+            on_phase_complete(ThinkingPhase.VERIFY, result.verification.raw_output)
+        if self.verbose:
+            self._display_verification(result.verification)
 
     # =========================================================================
     # Phase 1: Understand
@@ -891,6 +1113,130 @@ Now refine the plan:"""
         )
 
     # =========================================================================
+    # Phase 7: Verify
+    # =========================================================================
+
+    async def _phase_verify(
+        self,
+        task: str,
+        understanding: TaskUnderstanding,
+        refined_plan: RefinedPlan,
+        context: str,
+    ) -> Verification:
+        """Phase 7: Verify plan against original requirements."""
+        steps_text = ""
+        for step in refined_plan.final_steps:
+            steps_text += f"\n{step.number}. {step.action}"
+            if step.details:
+                steps_text += f"\n   Details: {step.details}"
+
+        prompt = f"""You are doing a final verification check before execution.
+
+## Original Task
+{task}
+
+## Core Goal
+{understanding.core_goal}
+
+## Success Criteria
+{chr(10).join('- ' + c for c in understanding.success_criteria) if understanding.success_criteria else 'Not specified'}
+
+## Implicit Requirements
+{chr(10).join('- ' + r for r in understanding.implicit_requirements) if understanding.implicit_requirements else 'None identified'}
+
+## The Final Plan
+Summary: {refined_plan.final_summary}
+Steps:
+{steps_text}
+
+## Context
+{context if context else "No additional context."}
+
+## Instructions
+Verify this plan against the original requirements:
+1. Which requirements does the plan address?
+2. Which requirements might be missing or incomplete?
+3. What edge cases does the plan cover?
+4. What edge cases might be missing?
+5. Are there any blocking issues that would prevent execution?
+6. Final confidence: Is this plan ready to execute?
+
+Be thorough - this is the last check before execution.
+
+Output in this EXACT format:
+
+[VERIFY:requirements_met]
+- <Requirement that IS addressed by the plan>
+- <Add more as needed>
+
+[VERIFY:requirements_missing]
+- <Requirement that is NOT addressed or incomplete>
+- <Add more as needed, or "None" if all covered>
+
+[VERIFY:edge_cases_covered]
+- <Edge case the plan handles>
+- <Add more as needed>
+
+[VERIFY:edge_cases_missing]
+- <Edge case NOT covered>
+- <Add more as needed, or "None" if all covered>
+
+[VERIFY:blocking_issues]
+- <Issue that would block execution>
+- <Add more as needed, or "None" if ready>
+
+[VERIFY:ready]
+<yes/no>
+
+[VERIFY:confidence]
+<Number from 0-100>
+
+[VERIFY:end]
+
+Now verify the plan:"""
+
+        result = await self.client.run_batch(prompt)
+        return self._parse_verification(result.output)
+
+    def _parse_verification(self, output: str) -> Verification:
+        """Parse verification from LLM output."""
+
+        def extract_list(marker: str) -> list[str]:
+            pattern = rf"\[VERIFY:{marker}\]\s*(.+?)(?=\[VERIFY:|$)"
+            match = re.search(pattern, output, re.DOTALL | re.IGNORECASE)
+            if match:
+                items = re.findall(r"^[-*]\s*(.+)$", match.group(1), re.MULTILINE)
+                items = [item.strip() for item in items if item.strip()]
+                # Filter out "None" entries
+                return [i for i in items if i.lower() != "none"]
+            return []
+
+        # Extract ready status
+        ready_match = re.search(r"\[VERIFY:ready\]\s*(\w+)", output, re.IGNORECASE)
+        ready = True
+        if ready_match:
+            ready = ready_match.group(1).lower() in ("yes", "true", "ready")
+
+        # Extract confidence
+        confidence_match = re.search(r"\[VERIFY:confidence\]\s*(\d+)", output)
+        confidence = 80
+        if confidence_match:
+            confidence = min(100, max(0, int(confidence_match.group(1))))
+
+        blocking = extract_list("blocking_issues")
+
+        return Verification(
+            requirements_met=extract_list("requirements_met"),
+            requirements_missing=extract_list("requirements_missing"),
+            edge_cases_covered=extract_list("edge_cases_covered"),
+            edge_cases_missing=extract_list("edge_cases_missing"),
+            ready_to_execute=ready and len(blocking) == 0,
+            blocking_issues=blocking,
+            final_confidence=confidence / 100.0,
+            raw_output=output,
+        )
+
+    # =========================================================================
     # Display helpers
     # =========================================================================
 
@@ -993,3 +1339,36 @@ Now refine the plan:"""
                 content += f"  ... and {len(refined.final_steps) - 5} more steps\n"
 
         self.console.print(Panel(content.strip(), title="Refined Plan", border_style="green"))
+
+    def _display_verification(self, verification: Verification) -> None:
+        """Display verification results."""
+        status = "✓ Ready" if verification.ready_to_execute else "✗ Not Ready"
+        status_color = "green" if verification.ready_to_execute else "red"
+
+        content = f"**Status**: [{status_color}]{status}[/{status_color}]\n"
+        content += f"**Confidence**: {verification.final_confidence:.0%}\n"
+
+        if verification.requirements_met:
+            content += "\n**Requirements Met**:\n"
+            for r in verification.requirements_met[:4]:
+                content += f"  ✓ {r}\n"
+            if len(verification.requirements_met) > 4:
+                content += f"  ... and {len(verification.requirements_met) - 4} more\n"
+
+        if verification.requirements_missing:
+            content += "\n**Requirements Missing**:\n"
+            for r in verification.requirements_missing[:3]:
+                content += f"  ⚠ {r}\n"
+
+        if verification.edge_cases_missing:
+            content += "\n**Edge Cases to Consider**:\n"
+            for e in verification.edge_cases_missing[:3]:
+                content += f"  → {e}\n"
+
+        if verification.blocking_issues:
+            content += "\n**Blocking Issues**:\n"
+            for b in verification.blocking_issues:
+                content += f"  ✗ {b}\n"
+
+        border_color = "green" if verification.ready_to_execute else "yellow"
+        self.console.print(Panel(content.strip(), title="Verification", border_style=border_color))

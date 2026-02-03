@@ -79,10 +79,11 @@ src/kira/
 ├── skills/
 │   ├── manager.py          # SkillManager
 │   └── builtin/            # Built-in skill YAML files
-├── thinking/               # Thinking mode (two-phase execution)
-│   ├── planner.py          # ThinkingPlanner (Phase 1: analyze)
-│   ├── executor.py         # ThinkingExecutor (Phase 2: execute)
-│   └── models.py           # ThinkingPlan, Complexity
+├── thinking/               # Deep reasoning mode (7 phases)
+│   ├── reasoning.py        # DeepReasoning (main reasoning engine)
+│   ├── planner.py          # ThinkingPlanner (legacy two-phase)
+│   ├── executor.py         # ThinkingExecutor (legacy execution)
+│   └── models.py           # ThinkingResult, Verification, Complexity
 ├── agents/                 # Agent spawning system
 │   ├── classifier.py       # TaskClassifier (keyword-based)
 │   ├── registry.py         # AgentRegistry with built-in agents
@@ -98,19 +99,27 @@ src/kira/
 ## Key Features
 
 ### Deep Reasoning Mode (`-T`)
-Multi-phase reasoning with self-critique and refinement:
+Adaptive multi-phase reasoning with self-critique, loop-back, and verification:
 ```bash
 kira chat -T "implement user authentication"
 ```
 
-**6 Thinking Phases + Execution:**
+**7 Thinking Phases + Execution:**
 1. **Understand** - Deep analysis of task, implicit requirements, constraints
 2. **Explore** - Brainstorm 3-4 different approaches with pros/cons
 3. **Analyze** - Evaluate approaches, identify issues and mitigations
 4. **Plan** - Create detailed step-by-step execution plan
 5. **Critique** - Self-critique the plan, find weaknesses and blind spots
 6. **Refine** - Improve plan based on critique, increase confidence
-7. **Execute** - Run the refined plan with full context
+7. **Verify** - Final validation against original requirements (NEW)
+8. **Execute** - Run the refined plan with full context
+
+**Advanced Features:**
+- **Adaptive Phases**: Trivial tasks skip exploration/critique (UNDERSTAND → PLAN only)
+- **Confidence Loop-back**: If critique confidence < 50%, loops back to EXPLORE
+- **Phase-Specific Models**: Uses faster models for simple phases, best for critique/refine
+- **Memory-Informed**: Pulls relevant past reasoning from memory
+- **Streaming Output**: Shows each phase as it completes
 
 **Output includes:**
 - Task understanding with success criteria
@@ -119,6 +128,7 @@ kira chat -T "implement user authentication"
 - Detailed execution steps with verification
 - Self-critique with confidence score
 - Refined plan addressing weaknesses
+- Final verification against requirements
 
 ### Model Selection
 Use aliases or full model names:

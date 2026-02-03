@@ -46,6 +46,7 @@ class ThinkingPhase(Enum):
     PLAN = "plan"
     CRITIQUE = "critique"
     REFINE = "refine"
+    VERIFY = "verify"  # New: validates plan against requirements
     EXECUTE = "execute"
 
 
@@ -168,6 +169,20 @@ class RefinedPlan:
     confidence_score: float = 0.8
     raw_output: str = ""
 
+
+@dataclass
+class Verification:
+    """Verification of plan against requirements from Phase 7."""
+
+    requirements_met: list[str] = field(default_factory=list)
+    requirements_missing: list[str] = field(default_factory=list)
+    edge_cases_covered: list[str] = field(default_factory=list)
+    edge_cases_missing: list[str] = field(default_factory=list)
+    ready_to_execute: bool = True
+    blocking_issues: list[str] = field(default_factory=list)
+    final_confidence: float = 0.8
+    raw_output: str = ""
+
     def to_context(self) -> str:
         """Format refined plan for execution."""
         lines = [f"**Summary**: {self.final_summary}"]
@@ -205,11 +220,16 @@ class ThinkingResult:
     initial_plan: ExecutionPlan | None = None
     critique: Critique | None = None
     refined_plan: RefinedPlan | None = None
+    verification: Verification | None = None  # New: Phase 7 verification
 
     # Metadata
     phases_completed: list[ThinkingPhase] = field(default_factory=list)
     total_thinking_time: float = 0.0
     created_at: datetime = field(default_factory=datetime.utcnow)
+
+    # Adaptive reasoning metadata
+    was_simplified: bool = False  # True if phases were skipped (trivial task)
+    loop_back_count: int = 0  # Number of times we looped back due to low confidence
 
     def get_final_plan(self) -> str:
         """Get the best available plan for execution."""
