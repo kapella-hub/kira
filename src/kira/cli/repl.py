@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import time
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+# Suppress asyncio subprocess cleanup warnings when event loop closes
+# These occur during Ctrl+C interrupts but don't affect functionality
+warnings.filterwarnings("ignore", message=".*Event loop is closed.*")
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter, Completer, Completion
@@ -1741,6 +1747,8 @@ class InteractiveREPL:
             if entry_id:
                 duration = time.time() - start_time
                 self.log_store.update_entry_response(entry_id, "".join(collected), duration)
+            # Give subprocess time to clean up
+            await asyncio.sleep(0.1)
             return
         except Exception as e:
             self.console.print()
@@ -1996,7 +2004,11 @@ Please fix these issues. Show only the corrected code/solution."""
                     continue
 
                 # Send message
-                asyncio.run(self._send_message(user_input, session_manager, client))
+                try:
+                    asyncio.run(self._send_message(user_input, session_manager, client))
+                except KeyboardInterrupt:
+                    # Re-raise to be caught by outer handler
+                    raise
 
             except KeyboardInterrupt:
                 self.console.print()

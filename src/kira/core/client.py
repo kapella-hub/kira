@@ -257,6 +257,19 @@ class KiraClient:
             await process.wait()
             yield "\n[Error: kiro-cli timed out]\n"
 
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            # Clean up subprocess on interrupt
+            try:
+                process.terminate()
+                await asyncio.wait_for(process.wait(), timeout=2.0)
+            except (asyncio.TimeoutError, ProcessLookupError):
+                try:
+                    process.kill()
+                    await process.wait()
+                except ProcessLookupError:
+                    pass
+            raise
+
     async def run_batch(
         self,
         prompt: str,
