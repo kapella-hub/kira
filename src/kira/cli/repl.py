@@ -29,6 +29,7 @@ from ..core.config import Config
 from ..core.client import KiraClient, KiraNotFoundError
 from ..core.models import get_available_models, get_model_info, resolve_model
 from ..core.session import SessionManager
+from ..core.verifier import Verifier, CheckStatus
 from ..logs import RunLogStore
 from ..logs.models import RunMode
 from ..memory.store import MemoryStore
@@ -1622,6 +1623,105 @@ class InteractiveREPL:
             )
             if saved > 0 and self.verbose:
                 self.console.print(f"[{COLORS['muted']}]Learned {saved} things[/]")
+
+        # Autonomous mode: verify and self-correct if needed
+        if self.config.autonomous.enabled:
+            await self._autonomous_verify(
+                prompt, full_output, session_manager, client
+            )
+
+    async def _autonomous_verify(
+        self,
+        prompt: str,
+        output: str,
+        session_manager: SessionManager,
+        client: KiraClient,
+    ) -> None:
+        """Verify results and self-correct in autonomous mode."""
+        import re
+
+        # Detect modified files from output patterns
+        file_patterns = [
+            r'(?:created?|modified?|updated?|wrote?|edited?)\s+[`\'"]*([^\s`\'"]+\.\w+)',
+            r'(?:File|Writing to|Saved)\s*[:\s]+[`\'"]*([^\s`\'"]+\.\w+)',
+        ]
+
+        files_modified = []
+        for pattern in file_patterns:
+            matches = re.findall(pattern, output, re.IGNORECASE)
+            files_modified.extend(matches)
+        files_modified = list(set(files_modified))  # Dedupe
+
+        # Skip verification if no code changes detected
+        if not files_modified and not any(
+            kw in output.lower()
+            for kw in ['def ', 'class ', 'function ', 'import ', 'const ', 'let ']
+        ):
+            return
+
+        # Run verification
+        verifier = Verifier(working_dir=Path.cwd())
+
+        if self.verbose:
+            self.console.print(f"\n[{COLORS['muted']}]Verifying...[/]")
+
+        try:
+            result = await verifier.verify(
+                task=prompt,
+                output=output,
+                files_modified=files_modified,
+                run_tests=self.config.autonomous.run_tests,
+                check_types=False,  # Too slow for interactive
+            )
+        except Exception as e:
+            if self.verbose:
+                self.console.print(f"[{COLORS['muted']}]Verification skipped: {e}[/]")
+            return
+
+        # Show verification results
+        passed = result.passed_count
+        failed = result.failed_count
+        total = len(result.checks)
+
+        if failed == 0:
+            if self.verbose and total > 0:
+                self.console.print(
+                    f"[{COLORS['success']}]✓ Verified[/] [{COLORS['muted']}]({passed}/{total} checks passed)[/]"
+                )
+        else:
+            # Show failures
+            self.console.print(f"\n[{COLORS['warning']}]Verification issues:[/]")
+            for check in result.checks:
+                if check.status == CheckStatus.FAILED:
+                    self.console.print(f"  [{COLORS['error']}]✗[/] {check.message}")
+                    if check.details and self.verbose:
+                        self.console.print(f"    [{COLORS['muted']}]{check.details[:100]}[/]")
+
+            # Auto-retry if enabled and under retry limit
+            retries = getattr(self, '_verify_retries', 0)
+            max_retries = self.config.autonomous.max_retries
+
+            if retries < max_retries:
+                self._verify_retries = retries + 1
+                self.console.print(
+                    f"\n[{COLORS['accent']}]Attempting to fix (retry {retries + 1}/{max_retries})...[/]"
+                )
+
+                # Build correction prompt
+                issues = "\n".join(f"- {c.message}" for c in result.checks if c.status == CheckStatus.FAILED)
+                correction_prompt = f"""The previous attempt had issues that need fixing:
+
+{issues}
+
+Please fix these issues. Show only the corrected code/solution."""
+
+                # Re-run with correction
+                await self._send_message(correction_prompt, session_manager, client)
+            else:
+                self._verify_retries = 0  # Reset for next prompt
+                self.console.print(
+                    f"[{COLORS['muted']}]Max retries reached. Manual review may be needed.[/]"
+                )
 
     def _get_working_dir(self) -> Path:
         """Get the working directory, falling back to default if needed."""

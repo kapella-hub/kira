@@ -219,6 +219,12 @@ thinking:
   show_plan: true
   save_plans: true
 
+autonomous:
+  enabled: true              # Self-verification and auto-retry
+  max_retries: 3             # Retry failures up to N times
+  run_tests: true            # Run tests after code changes
+  verification_enabled: true # Verify syntax/imports
+
 workflow:
   auto_detect: true
   detection_threshold: 0.6

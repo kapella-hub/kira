@@ -5,6 +5,7 @@ Agentic CLI wrapper for [kiro-cli](https://kiro.dev) with persistent memory, ski
 ## Features
 
 - **Smart Memory**: Cross-session context with auto-extraction, decay, and relevance scoring
+- **Autonomous Mode**: Self-verification, auto-retry on failures, delivers working solutions
 - **Run Logs**: Automatic logging of all sessions with search and history
 - **Skills System**: Reusable prompts and workflows
 - **Team Context**: Shared project knowledge via git-tracked files
@@ -193,6 +194,34 @@ kira skills add myskill -d "Description" --local
 - **coder**: Implement with best practices
 - **debugger**: Systematic problem diagnosis
 
+## Autonomous Mode
+
+When enabled, Kira verifies its work and self-corrects:
+
+```bash
+/autonomous on         # Enable in REPL
+kira chat -A "task"    # Enable for one-shot
+```
+
+**What it does:**
+- Verifies syntax and imports after code changes
+- Runs tests automatically (if configured)
+- Retries failed operations up to N times
+- Makes small decisions without asking
+
+**Configuration:**
+```yaml
+autonomous:
+  enabled: true
+  max_retries: 3        # Auto-retry failures
+  run_tests: true       # Run tests after changes
+  verification_enabled: true
+```
+
+**Philosophy:** Kira delivers **working solutions**, not attempts. Small decisions (naming, style, minor implementation choices) are made autonomously. Only major architectural or business decisions require user input.
+
+**Resourcefulness:** Kira doesn't say "you need to install X" - it installs it. Need a file? Downloads it. Need docs? Fetches them. It uses all available tools (shell, web, file system) to get things done independently.
+
 ## Run Logs
 
 Kira automatically logs all chat sessions and REPL interactions for history and debugging.
@@ -242,6 +271,7 @@ Logs are stored at `~/.kira/data/runs.db` (SQLite).
 /model fast           # claude-3-haiku
 /memory off           # Disable memory
 /thinking on          # Enable deep reasoning
+/autonomous on        # Enable self-verification
 /trust on             # Auto-approve tools
 /timeout 600          # Set timeout
 /config save          # Persist changes
@@ -265,6 +295,11 @@ memory:
 
 thinking:
   enabled: true
+
+autonomous:
+  enabled: true
+  max_retries: 3
+  run_tests: true
 
 personality:
   enabled: true
