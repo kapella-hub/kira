@@ -35,10 +35,19 @@ FILTER_PATTERNS = [
     r"^╭.*Did you know.*╮",
     r"^│.*You can see.*│",
     r"^╰.*╯$",
+    # Tool execution announcements
+    r"^I will run the following command:",
+    r"^I'll create the following file:",
+    r"^I'll run the following command:",
+    r"^\(using tool:\s*\w+\)",
+    r"^Purpose:\s*",
+    r"^Replacing:\s*",
+    r"^Creating:\s*",
     # Tool execution logs
-    r"^(Reading|Writing|Executing|Running|Creating|Deleting)\s+",
+    r"^(Reading|Writing|Executing|Running|Deleting)\s+",
     # Timing info
     r"^▸\s*Time:",
+    r"^\s*•\s*Completed in \d",
     # Spinner artifacts
     r"^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\s]+$",
     # Empty lines with just spaces
@@ -54,6 +63,11 @@ FILTER_PATTERNS = [
     r"^error: Tool approval",
     r"^RUST_BACKTRACE=",
     r"^required but --no-interactive",
+    # Raw JSON output (API responses)
+    r'^{"[a-z_]+":',
+    # Line number prefixes from file diffs
+    r"^\s*\d+,\s*\d+:",
+    r"^\s*•\s*\d+\s*:",
 ]
 
 # Compiled filter patterns
