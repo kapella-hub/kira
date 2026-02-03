@@ -5,6 +5,7 @@ Agentic CLI wrapper for [kiro-cli](https://kiro.dev) with persistent memory, ski
 ## Features
 
 - **Smart Memory**: Cross-session context with auto-extraction, decay, and relevance scoring
+- **Coding Rules**: Auto-injected best practices for coding, refactoring, and UI design
 - **Autonomous Mode**: Self-verification, auto-retry on failures, delivers working solutions
 - **Smart Context**: Auto-detects relevant files from your task description
 - **Git Assistant**: Smart commit messages, branch name suggestions
@@ -196,6 +197,61 @@ kira skills add myskill -d "Description" --local
 - **researcher**: Investigate before recommending
 - **coder**: Implement with best practices
 - **debugger**: Systematic problem diagnosis
+
+## Coding Rules
+
+Kira automatically injects relevant coding rules based on your task:
+
+| Category | Triggers | Focus |
+|----------|----------|-------|
+| **Coding** | implement, code, function, class | Clean code, error handling, types |
+| **Refactoring** | refactor, improve, simplify | Safe changes, preserve behavior |
+| **UI Design** | ui, design, component, form | Accessibility, responsive, UX |
+
+Rules are auto-detected from your prompt and injected into the context.
+
+### Rule Sources (priority order)
+
+1. **Project** (`.kira/rules/`) - Team-specific, git-tracked
+2. **User** (`~/.kira/rules/`) - Personal preferences
+3. **Built-in** - Modern best practices
+
+### Custom Rules
+
+Create `.kira/rules/coding.yaml` to override defaults:
+
+```yaml
+name: My Coding Rules
+category: coding
+triggers:
+  - implement
+  - code
+
+principles:
+  - Always use TypeScript strict mode
+  - Prefer functional components
+
+rules:
+  - text: All functions must have JSDoc comments
+    priority: 9
+  - text: Use Zod for runtime validation
+    priority: 8
+
+anti_patterns:
+  - Using any type
+  - Inline styles in React
+```
+
+### Disable Rules
+
+```bash
+# In REPL
+/rules off
+
+# In config.yaml
+rules:
+  enabled: false
+```
 
 ## Autonomous Mode
 

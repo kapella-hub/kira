@@ -17,6 +17,7 @@ from ..memory.failures import FailureLearning
 from ..memory.models import MemorySource, MemoryType
 from ..memory.project_store import ProjectMemoryStore
 from ..memory.store import MemoryStore
+from ..rules import RulesManager
 from ..skills.manager import SkillManager
 from .personality import Personality, get_personality
 
@@ -36,6 +37,7 @@ class Session:
     personality: Personality | None = None
     inject_personality: bool = True
     smart_context_enabled: bool = True  # Auto-load relevant files
+    rules_enabled: bool = True  # Auto-inject coding rules based on task
     # Conversation tracking for better memory
     turn_count: int = 0
     conversation_topics: list[str] = field(default_factory=list)
@@ -59,7 +61,8 @@ class SessionManager:
     Before each kiro-cli invocation, we:
     1. Load relevant memories (user-local and project-local)
     2. Load active skills
-    3. Build the context prefix
+    3. Load coding rules
+    4. Build the context prefix
     """
 
     def __init__(
@@ -68,11 +71,13 @@ class SessionManager:
         skill_manager: SkillManager | None = None,
         project_memory: ProjectMemoryStore | None = None,
         failure_learning: FailureLearning | None = None,
+        rules_manager: RulesManager | None = None,
     ):
         self.memory = memory_store or MemoryStore()
         self.skills = skill_manager or SkillManager()
         self.project_memory = project_memory  # Set per-session based on working dir
         self.failure_learning = failure_learning or FailureLearning()
+        self.rules = rules_manager  # Set per-session based on working dir
         self._current: Session | None = None
 
     def start(
@@ -86,6 +91,7 @@ class SessionManager:
         personality: Personality | None = None,
         inject_personality: bool = True,
         context_manager: ContextManager | None = None,
+        rules_enabled: bool = True,
     ) -> Session:
         """Start a new session."""
         session_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -116,6 +122,11 @@ class SessionManager:
                 min_importance=min_importance,
             )
 
+        # Initialize rules manager for this working directory
+        self.rules = RulesManager(work_dir)
+        if rules_enabled:
+            self.rules.load()  # Pre-load rules at session start
+
         # Load skill prompts
         skill_prompts: dict[str, str] = {}
         if skills:
@@ -135,6 +146,7 @@ class SessionManager:
             skill_prompts=skill_prompts,
             personality=personality or get_personality(),
             inject_personality=inject_personality,
+            rules_enabled=rules_enabled,
         )
 
         return self._current
@@ -191,6 +203,13 @@ class SessionManager:
                 parts.append(f"## Skill: {skill_name}\n\n{prompt}")
             parts.append("---")
 
+        # Add rules context (auto-detected based on task type)
+        if self._current.rules_enabled:
+            rules_context = self._load_rules_context(user_prompt)
+            if rules_context:
+                parts.append(rules_context)
+                parts.append("---")
+
         # Add smart context (auto-detected relevant files)
         if self._current.smart_context_enabled:
             smart_context = self._load_smart_context(user_prompt)
@@ -218,6 +237,16 @@ class SessionManager:
             loader = SmartContextLoader(self._current.working_dir)
             context = loader.load(prompt, max_files=5)
             return context.get_context_string(max_chars=3000)
+        except Exception:
+            return ""
+
+    def _load_rules_context(self, prompt: str) -> str:
+        """Load rules context based on the task type."""
+        if not self.rules:
+            return ""
+
+        try:
+            return self.rules.get_context(prompt, max_rulesets=2)
         except Exception:
             return ""
 

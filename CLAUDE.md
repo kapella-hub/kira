@@ -79,6 +79,10 @@ src/kira/
 ├── skills/
 │   ├── manager.py          # SkillManager
 │   └── builtin/            # Built-in skill YAML files
+├── rules/                  # Coding rules system
+│   ├── manager.py          # RulesManager (auto-loads rules)
+│   ├── models.py           # Rule, RuleSet, RuleCategory
+│   └── builtin/            # Built-in rules (coding, refactoring, ui-design)
 ├── thinking/               # Deep reasoning mode (7 phases)
 │   ├── reasoning.py        # DeepReasoning (main reasoning engine)
 │   ├── planner.py          # ThinkingPlanner (legacy two-phase)
@@ -157,6 +161,25 @@ Task classification and specialized agent spawning:
 - TaskClassifier identifies task type (CODING, ARCHITECTURE, DEBUGGING, etc.)
 - AgentRegistry holds agent specs with skills and prompts
 - AgentSpawner manages agent lifecycle
+
+### Coding Rules System
+Auto-injected best practices based on task type:
+
+**Built-in rulesets:**
+- `coding.yaml` - Clean code, error handling, types, naming
+- `refactoring.yaml` - Safe changes, preserve behavior, test first
+- `ui-design.yaml` - Accessibility, responsive, UX patterns
+
+**Rule loading (priority order):**
+1. `.kira/rules/` - Project-specific (git-tracked)
+2. `~/.kira/rules/` - User preferences
+3. `src/kira/rules/builtin/` - Defaults
+
+**Auto-detection:**
+Rules are matched by trigger keywords in the task:
+- "implement", "code", "function" → coding rules
+- "refactor", "improve", "simplify" → refactoring rules
+- "ui", "design", "component", "form" → ui-design rules
 
 ## Key Patterns
 

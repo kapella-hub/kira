@@ -1,0 +1,195 @@
+name: Modern UI/UX Design Practices
+category: ui-design
+description: |
+  Best practices for creating accessible, responsive, and user-friendly interfaces.
+  Covers web, mobile, and desktop application design principles.
+
+triggers:
+  - ui
+  - ux
+  - interface
+  - design
+  - frontend
+  - component
+  - layout
+  - style
+  - css
+  - html
+  - react
+  - vue
+  - angular
+  - button
+  - form
+  - modal
+  - navigation
+  - responsive
+  - mobile
+  - accessibility
+  - a11y
+
+principles:
+  - Design for accessibility first - it benefits everyone
+  - Mobile-first responsive design
+  - Consistency builds trust and reduces cognitive load
+  - Provide clear feedback for every user action
+  - Progressive disclosure - show only what's needed
+  - Performance is a feature - fast feels good
+
+rules:
+  # Accessibility (A11Y) - Top Priority
+  - text: All interactive elements must be keyboard accessible (Tab, Enter, Escape)
+    priority: 10
+  - text: "Maintain color contrast ratio of at least 4.5:1 for text (WCAG AA)"
+    priority: 10
+  - text: Never rely on color alone to convey information
+    priority: 10
+  - text: All images need meaningful alt text (or alt="" for decorative)
+    priority: 10
+  - text: Form inputs must have associated labels (not just placeholders)
+    priority: 10
+  - text: Use semantic HTML elements (button, nav, main, article, aside)
+    priority: 9
+  - text: Provide skip links for keyboard users to bypass navigation
+    priority: 8
+  - text: Ensure focus states are visible and clear
+    priority: 9
+  - text: Support reduced motion preferences (@media prefers-reduced-motion)
+    priority: 8
+  - text: ARIA labels only when semantic HTML isn't sufficient
+    priority: 7
+
+  # Responsive Design
+  - text: Design mobile-first, enhance for larger screens
+    priority: 9
+  - text: Touch targets minimum 44x44px for mobile
+    priority: 9
+  - text: Use relative units (rem, em, %) over fixed pixels
+    priority: 8
+  - text: Test at common breakpoints (320px, 768px, 1024px, 1440px)
+    priority: 8
+  - text: Content should be readable without horizontal scrolling
+    priority: 9
+  - text: "Images and media should be responsive (max-width: 100%)"
+    priority: 8
+
+  # Visual Hierarchy & Layout
+  - text: Establish clear visual hierarchy with size, weight, and spacing
+    priority: 9
+  - text: Use consistent spacing scale (4px, 8px, 16px, 24px, 32px, 48px)
+    priority: 8
+  - text: Group related elements with whitespace, not boxes
+    priority: 7
+  - text: Limit line length to 60-80 characters for readability
+    priority: 7
+  - text: Align elements to a grid for visual consistency
+    priority: 7
+
+  # Typography
+  - text: Use a maximum of 2-3 font families
+    priority: 8
+  - text: Base font size minimum 16px for body text
+    priority: 9
+  - text: Line height 1.4-1.6 for body text readability
+    priority: 8
+  - text: Establish clear type scale (e.g., 1.25 ratio)
+    priority: 7
+
+  # Color & Theming
+  - text: Define a consistent color palette with semantic meanings
+    priority: 8
+  - text: Use color variables/tokens for maintainability
+    priority: 8
+  - text: Support dark mode with prefers-color-scheme
+    priority: 7
+  - text: Error states in red, success in green, warnings in amber (with icons too)
+    priority: 8
+
+  # Interactive Elements
+  - text: Buttons should look clickable - clear affordance
+    priority: 9
+  - text: Provide hover, focus, active, and disabled states
+    priority: 9
+  - text: Loading states for async operations (spinners, skeletons)
+    priority: 9
+  - text: Disable submit buttons during form submission to prevent double-submit
+    priority: 8
+  - text: Confirm destructive actions with clear consequences
+    priority: 9
+
+  # Forms
+  - text: Inline validation with helpful error messages
+    priority: 9
+  - text: Error messages should explain how to fix the problem
+    priority: 9
+  - text: Mark required fields clearly (asterisk + aria-required)
+    priority: 8
+  - text: Use appropriate input types (email, tel, number, date)
+    priority: 8
+  - text: Support autofill with proper autocomplete attributes
+    priority: 7
+  - text: Group related form fields with fieldset/legend
+    priority: 7
+
+  # Feedback & Communication
+  - text: Acknowledge every user action with visual feedback
+    priority: 9
+  - text: Use toast notifications for non-blocking feedback
+    priority: 7
+  - text: Show progress for long operations (progress bars, step indicators)
+    priority: 8
+  - text: Empty states should guide users on what to do next
+    priority: 8
+  - text: Error pages should help users recover (suggestions, links)
+    priority: 8
+
+  # Performance
+  - text: Lazy load images and components below the fold
+    priority: 8
+  - text: Use skeleton screens instead of spinners when possible
+    priority: 7
+  - text: Optimize images (WebP, proper sizing, compression)
+    priority: 8
+  - text: Minimize layout shifts (CLS) - reserve space for dynamic content
+    priority: 8
+
+  # Component Design
+  - text: Components should be self-contained and reusable
+    priority: 8
+  - text: Props should have sensible defaults
+    priority: 7
+  - text: Separate presentational and container components
+    priority: 7
+  - text: Use composition over configuration for flexibility
+    priority: 7
+
+anti_patterns:
+  - Placeholder text as the only label for form inputs
+  - Disabling zoom on mobile viewports
+  - Auto-playing videos or audio without user consent
+  - Infinite scroll without keyboard support or "back to top"
+  - Hiding content behind hover-only interactions on mobile
+  - Text embedded in images (accessibility and SEO issue)
+  - Fixed position elements blocking content on small screens
+  - Using only icons without text labels or tooltips
+  - Color as the only differentiator (red/green for error/success)
+  - Carousel/slider as primary navigation
+  - Popup modals on page load
+  - Tiny click targets on mobile
+  - Forms that clear on validation error
+
+examples:
+  good: |
+    <button
+      type="submit"
+      aria-label="Submit contact form"
+      className="btn btn-primary"
+      disabled={isSubmitting}
+    >
+      {isSubmitting ? <Spinner aria-hidden="true" /> : null}
+      {isSubmitting ? 'Sending...' : 'Send Message'}
+    </button>
+
+  bad: |
+    <div onclick="submit()" style="color: blue; cursor: pointer;">
+      Click here
+    </div>
