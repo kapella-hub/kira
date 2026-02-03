@@ -13,7 +13,7 @@ Agentic CLI wrapper for [kiro-cli](https://kiro.dev) with persistent memory, ski
 - **Skills System**: Reusable prompts and workflows
 - **Team Context**: Shared project knowledge via git-tracked files
 - **Interactive REPL**: Dynamic prompts, tab completion, quick toggles
-- **Thinking Mode**: Multi-phase reasoning with self-critique
+- **Thinking Mode**: Adaptive multi-phase reasoning with self-critique, loop-back, and verification
 
 ## Installation
 
