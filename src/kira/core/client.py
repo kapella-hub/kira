@@ -26,12 +26,15 @@ ANSI_ESCAPE = re.compile(
 
 # Patterns to filter from kiro-cli output
 FILTER_PATTERNS = [
-    # ASCII art and banners
-    r"^[─│┌┐└┘├┤┬┴┼═║╔╗╚╝╠╣╦╩╬█▀▄░▒▓\s]+$",
+    # ASCII art and banners (box drawing, blocks, braille patterns)
+    r"^[─│┌┐└┘├┤┬┴┼═║╔╗╚╝╠╣╦╩╬█▀▄░▒▓⠀⢀⣀⣄⣠⣤⣴⣶⣷⣿⡀⡄⡆⡇⡈⡉⡊⡋⡌⡍⡎⡏⡐⡑⡒⡓⡔⡕⡖⡗⡘⡙⡚⡛⡜⡝⡞⡟⡠⡡⡢⡣⡤⡥⡦⡧⡨⡩⡪⡫⡬⡭⡮⡯⡰⡱⡲⡳⡴⡵⡶⡷⡸⡹⡺⡻⡼⡽⡾⡿⢀⢁⢂⢃⢄⢅⢆⢇⢈⢉⢊⢋⢌⢍⢎⢏⢐⢑⢒⢓⢔⢕⢖⢗⢘⢙⢚⢛⢜⢝⢞⢟⢠⢡⢢⢣⢤⢥⢦⢧⢨⢩⢪⢫⢬⢭⢮⢯⢰⢱⢲⢳⢴⢵⢶⢷⢸⢹⢺⢻⢼⢽⢾⢿⣀⣁⣂⣃⣄⣅⣆⣇⣈⣉⣊⣋⣌⣍⣎⣏⣐⣑⣒⣓⣔⣕⣖⣗⣘⣙⣚⣛⣜⣝⣞⣟⣠⣡⣢⣣⣤⣥⣦⣧⣨⣩⣪⣫⣬⣭⣮⣯⣰⣱⣲⣳⣴⣵⣶⣷⣸⣹⣺⣻⣼⣽⣾⣿\s]+$",
     # Model selection line
     r"^Model:\s*",
     # Did you know tips
     r"^Did you know\?",
+    r"^╭.*Did you know.*╮",
+    r"^│.*You can see.*│",
+    r"^╰.*╯$",
     # Tool execution logs
     r"^(Reading|Writing|Executing|Running|Creating|Deleting)\s+",
     # Timing info
@@ -40,6 +43,17 @@ FILTER_PATTERNS = [
     r"^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\s]+$",
     # Empty lines with just spaces
     r"^\s*$",
+    # Tool trust messages
+    r"^All tools are now trusted",
+    r"^Learn more at https://kiro\.dev",
+    r"^Kiro will execute tools without asking",
+    r"^Agents can sometimes do unexpected",
+    # Error messages to suppress (user sees our cleaned version)
+    r"^Kiro is having trouble responding",
+    r"^Location: crates/",
+    r"^error: Tool approval",
+    r"^RUST_BACKTRACE=",
+    r"^required but --no-interactive",
 ]
 
 # Compiled filter patterns
@@ -247,9 +261,11 @@ class KiraClient:
             if process.returncode != 0:
                 stderr_data = await process.stderr.read()
                 if stderr_data:
-                    stderr_text = stderr_data.decode("utf-8", errors="replace").strip()
-                    if stderr_text:
-                        yield f"\n[Error from kiro-cli: {stderr_text}]\n"
+                    stderr_text = stderr_data.decode("utf-8", errors="replace")
+                    # Clean stderr output too
+                    cleaned_stderr = self._clean_output(stderr_text)
+                    if cleaned_stderr:
+                        yield f"\n[Error from kiro-cli: {cleaned_stderr}]\n"
 
         except TimeoutError:
             process.kill()
