@@ -9,6 +9,13 @@ from .maintenance import (
     MemoryConsolidator,
     MemoryMaintenance,
 )
+from .failures import (
+    FailureLearning,
+    FailurePattern,
+    detect_error_type,
+    extract_error_message,
+    get_failure_learning,
+)
 from .models import ExtractedMemory, Memory, MemorySource, MemoryType
 from .project_store import ProjectMemoryStore, get_project_memory
 from .relevance import RelevanceScorer, get_relevant_memories
@@ -40,4 +47,10 @@ __all__ = [
     # Execution
     "ExecutionMemory",
     "ExecutionRecord",
+    # Failure Learning
+    "FailureLearning",
+    "FailurePattern",
+    "detect_error_type",
+    "extract_error_message",
+    "get_failure_learning",
 ]

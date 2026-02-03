@@ -11,7 +11,9 @@ from datetime import datetime
 from pathlib import Path
 
 from ..context import ContextManager
+from ..context.smart import SmartContextLoader
 from ..memory.extractor import MemoryExtractor
+from ..memory.failures import FailureLearning
 from ..memory.models import MemorySource, MemoryType
 from ..memory.project_store import ProjectMemoryStore
 from ..memory.store import MemoryStore
@@ -33,6 +35,7 @@ class Session:
     skill_prompts: dict[str, str] = field(default_factory=dict)
     personality: Personality | None = None
     inject_personality: bool = True
+    smart_context_enabled: bool = True  # Auto-load relevant files
     # Conversation tracking for better memory
     turn_count: int = 0
     conversation_topics: list[str] = field(default_factory=list)
@@ -64,10 +67,12 @@ class SessionManager:
         memory_store: MemoryStore | None = None,
         skill_manager: SkillManager | None = None,
         project_memory: ProjectMemoryStore | None = None,
+        failure_learning: FailureLearning | None = None,
     ):
         self.memory = memory_store or MemoryStore()
         self.skills = skill_manager or SkillManager()
         self.project_memory = project_memory  # Set per-session based on working dir
+        self.failure_learning = failure_learning or FailureLearning()
         self._current: Session | None = None
 
     def start(
@@ -186,10 +191,62 @@ class SessionManager:
                 parts.append(f"## Skill: {skill_name}\n\n{prompt}")
             parts.append("---")
 
+        # Add smart context (auto-detected relevant files)
+        if self._current.smart_context_enabled:
+            smart_context = self._load_smart_context(user_prompt)
+            if smart_context:
+                parts.append(smart_context)
+                parts.append("---")
+
+        # Add failure warnings (learn from past mistakes)
+        failure_warnings = self._load_failure_warnings(user_prompt)
+        if failure_warnings:
+            parts.append(failure_warnings)
+            parts.append("---")
+
         # Add the user prompt
         parts.append("## Task\n\n" + user_prompt)
 
         return "\n\n".join(parts)
+
+    def _load_smart_context(self, prompt: str) -> str:
+        """Load smart context based on the prompt."""
+        if not self._current:
+            return ""
+
+        try:
+            loader = SmartContextLoader(self._current.working_dir)
+            context = loader.load(prompt, max_files=5)
+            return context.get_context_string(max_chars=3000)
+        except Exception:
+            return ""
+
+    def _load_failure_warnings(self, prompt: str) -> str:
+        """Load relevant failure warnings."""
+        try:
+            return self.failure_learning.get_context_string(prompt, max_warnings=3)
+        except Exception:
+            return ""
+
+    def record_failure(
+        self,
+        error_type: str,
+        error_message: str,
+        context: str,
+        solution: str = "",
+        task: str = "",
+    ) -> None:
+        """Record a failure for future learning."""
+        try:
+            self.failure_learning.record_failure(
+                error_type=error_type,
+                error_message=error_message,
+                context=context,
+                solution=solution,
+                task=task,
+            )
+        except Exception:
+            pass  # Don't fail on learning errors
 
     def extract_memories(self, response: str) -> list[tuple[str, str]]:
         """Extract memories from agent response.

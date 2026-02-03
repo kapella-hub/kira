@@ -10,6 +10,7 @@ from .models import (
     ProjectContext,
     TechStack,
 )
+from .smart import ContextMatch, SmartContext, SmartContextLoader, load_smart_context
 
 __all__ = [
     # Manager
@@ -18,6 +19,11 @@ __all__ = [
     # Analyzer
     "ProjectAnalyzer",
     "analyze_project",
+    # Smart context
+    "SmartContextLoader",
+    "SmartContext",
+    "ContextMatch",
+    "load_smart_context",
     # Models
     "ProjectContext",
     "ChangeEntry",

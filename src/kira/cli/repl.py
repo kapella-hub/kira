@@ -65,6 +65,7 @@ COMMANDS = [
     "/verbose", "/trust", "/timeout",
     "/status", "/compact", "/history",
     "/context", "/logs", "/cd", "/view",
+    "/commit", "/branch", "/git",
 ]
 
 # Context subcommands for completion
@@ -374,6 +375,21 @@ class InteractiveREPL:
         for cmd, desc in logs_cmds:
             logs_table.add_row(cmd, desc)
 
+        # Git table
+        git_table = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
+        git_table.add_column("Command", style=f"bold {COLORS['accent']}")
+        git_table.add_column("Description", style=COLORS['muted'])
+
+        git_cmds = [
+            ("/git", "Show git status"),
+            ("/commit", "Generate commit message"),
+            ("/commit <msg>", "Commit with message"),
+            ("/branch <task>", "Suggest branch name"),
+        ]
+
+        for cmd, desc in git_cmds:
+            git_table.add_row(cmd, desc)
+
         # Shortcuts
         shortcuts = Text()
         shortcuts.append("Tab", style=f"bold {COLORS['primary']}")
@@ -395,6 +411,9 @@ class InteractiveREPL:
             Text(""),
             Text("Memory (persistent learning)", style=f"bold {COLORS['warning']}"),
             memory_table,
+            Text(""),
+            Text("Git (commit, branch)", style=f"bold {COLORS['accent']}"),
+            git_table,
             Text(""),
             Text("Run Logs (history)", style=f"bold {COLORS['muted']}"),
             logs_table,
@@ -504,6 +523,15 @@ class InteractiveREPL:
 
         elif command == "/project":
             self._handle_project(args)
+
+        elif command == "/commit":
+            self._handle_commit(args)
+
+        elif command == "/branch":
+            self._handle_branch(args)
+
+        elif command == "/git":
+            self._show_git_status()
 
         else:
             self._print_warning(f"Unknown command: {command}")
@@ -831,6 +859,139 @@ class InteractiveREPL:
         store.save()  # Create empty file
         self._print_success("Created .kira/project-memory.yaml")
         self.console.print(f"[{COLORS['muted']}]Add to git: git add .kira/project-memory.yaml[/]")
+
+    def _show_git_status(self) -> None:
+        """Show git repository status."""
+        from ..git import GitAssistant
+
+        git = GitAssistant(Path.cwd())
+        status = git.get_status()
+
+        if not status.is_repo:
+            self.console.print(f"[{COLORS['muted']}]Not a git repository[/]")
+            return
+
+        self.console.print(f"[{COLORS['primary']}]Git Status[/]")
+        self.console.print()
+
+        # Branch info
+        branch_style = COLORS['success'] if status.branch in ('main', 'master') else COLORS['accent']
+        self.console.print(f"  Branch: [{branch_style}]{status.branch}[/]")
+
+        if status.ahead or status.behind:
+            sync = []
+            if status.ahead:
+                sync.append(f"↑{status.ahead}")
+            if status.behind:
+                sync.append(f"↓{status.behind}")
+            self.console.print(f"  Sync: {' '.join(sync)}")
+
+        self.console.print()
+
+        # Changes
+        if status.staged:
+            self.console.print(f"  [{COLORS['success']}]Staged ({len(status.staged)}):[/]")
+            for f in status.staged[:5]:
+                self.console.print(f"    + {f}")
+            if len(status.staged) > 5:
+                self.console.print(f"    ... and {len(status.staged) - 5} more")
+
+        if status.unstaged:
+            self.console.print(f"  [{COLORS['warning']}]Modified ({len(status.unstaged)}):[/]")
+            for f in status.unstaged[:5]:
+                self.console.print(f"    ~ {f}")
+            if len(status.unstaged) > 5:
+                self.console.print(f"    ... and {len(status.unstaged) - 5} more")
+
+        if status.untracked:
+            self.console.print(f"  [{COLORS['muted']}]Untracked ({len(status.untracked)}):[/]")
+            for f in status.untracked[:5]:
+                self.console.print(f"    ? {f}")
+            if len(status.untracked) > 5:
+                self.console.print(f"    ... and {len(status.untracked) - 5} more")
+
+        if not status.has_changes:
+            self.console.print(f"  [{COLORS['success']}]Working tree clean[/]")
+
+        self.console.print()
+        self.console.print(f"[{COLORS['muted']}]Commands: /commit, /branch <task>[/]")
+
+    def _handle_commit(self, args: str) -> None:
+        """Handle /commit command - generate commit message and optionally commit."""
+        from ..git import GitAssistant
+
+        git = GitAssistant(Path.cwd())
+        status = git.get_status()
+
+        if not status.is_repo:
+            self._print_error("Not a git repository")
+            return
+
+        if not status.has_changes:
+            self.console.print(f"[{COLORS['muted']}]No changes to commit[/]")
+            return
+
+        # Stage all if nothing staged
+        if not status.staged:
+            self.console.print(f"[{COLORS['muted']}]Staging all changes...[/]")
+            git.stage_all()
+            status = git.get_status()
+
+        # Generate commit message
+        suggestion = git.suggest_commit(task_context=args)
+        message = suggestion.format()
+
+        self.console.print(f"[{COLORS['primary']}]Suggested Commit[/]")
+        self.console.print()
+        self.console.print(Panel(message, border_style=COLORS['muted']))
+        self.console.print()
+
+        # Show what will be committed
+        self.console.print(f"[{COLORS['muted']}]Files to commit: {len(status.staged)}[/]")
+        for f in status.staged[:5]:
+            self.console.print(f"  [{COLORS['success']}]+[/] {f}")
+        if len(status.staged) > 5:
+            self.console.print(f"  ... and {len(status.staged) - 5} more")
+
+        self.console.print()
+        self.console.print(f"[{COLORS['accent']}]To commit:[/] git commit -m \"{suggestion.subject}\"")
+        self.console.print(f"[{COLORS['muted']}]Or edit the message and run: /commit <your message>[/]")
+
+        # If args provided, use as message and commit
+        if args.strip():
+            self.console.print()
+            success, output = git.commit(args.strip())
+            if success:
+                self._print_success("Committed!")
+                self.console.print(f"[{COLORS['muted']}]{output.strip()}[/]")
+            else:
+                self._print_error(f"Commit failed: {output}")
+
+    def _handle_branch(self, args: str) -> None:
+        """Handle /branch command - suggest branch name from task."""
+        from ..git import GitAssistant
+
+        git = GitAssistant(Path.cwd())
+        status = git.get_status()
+
+        if not status.is_repo:
+            self._print_error("Not a git repository")
+            return
+
+        if not args.strip():
+            # Show current branch
+            self.console.print(f"[{COLORS['primary']}]Current branch:[/] {status.branch}")
+            self.console.print(f"[{COLORS['muted']}]Usage: /branch <task description>[/]")
+            return
+
+        # Suggest branch name
+        suggested = git.suggest_branch(args)
+
+        self.console.print(f"[{COLORS['primary']}]Suggested Branch[/]")
+        self.console.print()
+        self.console.print(f"  [{COLORS['accent']}]{suggested}[/]")
+        self.console.print()
+        self.console.print(f"[{COLORS['muted']}]To create: git checkout -b {suggested}[/]")
 
     def _handle_config(self, args: str) -> None:
         """Handle /config command."""
@@ -1696,6 +1857,14 @@ class InteractiveREPL:
                     self.console.print(f"  [{COLORS['error']}]✗[/] {check.message}")
                     if check.details and self.verbose:
                         self.console.print(f"    [{COLORS['muted']}]{check.details[:100]}[/]")
+
+                    # Record failure for learning
+                    session_manager.record_failure(
+                        error_type=check.check_type.value,
+                        error_message=check.message,
+                        context=prompt[:200],
+                        task=prompt,
+                    )
 
             # Auto-retry if enabled and under retry limit
             retries = getattr(self, '_verify_retries', 0)

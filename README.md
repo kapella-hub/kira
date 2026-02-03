@@ -6,6 +6,9 @@ Agentic CLI wrapper for [kiro-cli](https://kiro.dev) with persistent memory, ski
 
 - **Smart Memory**: Cross-session context with auto-extraction, decay, and relevance scoring
 - **Autonomous Mode**: Self-verification, auto-retry on failures, delivers working solutions
+- **Smart Context**: Auto-detects relevant files from your task description
+- **Git Assistant**: Smart commit messages, branch name suggestions
+- **Learning from Failures**: Remembers errors and solutions, warns about known pitfalls
 - **Run Logs**: Automatic logging of all sessions with search and history
 - **Skills System**: Reusable prompts and workflows
 - **Team Context**: Shared project knowledge via git-tracked files
@@ -221,6 +224,57 @@ autonomous:
 **Philosophy:** Kira delivers **working solutions**, not attempts. Small decisions (naming, style, minor implementation choices) are made autonomously. Only major architectural or business decisions require user input.
 
 **Resourcefulness:** Kira doesn't say "you need to install X" - it installs it. Need a file? Downloads it. Need docs? Fetches them. It uses all available tools (shell, web, file system) to get things done independently.
+
+## Smart Context
+
+Kira auto-detects relevant files from your task:
+
+```
+> fix the bug in session.py
+
+[Kira automatically loads session.py and related files into context]
+```
+
+Detects:
+- Direct file mentions (`session.py`, `config.yaml`)
+- Function/class references (`build_prompt`, `SessionManager`)
+- Import paths (`from kira.core.session`)
+- Keywords (auth → finds auth-related files)
+
+## Git Assistant
+
+Smart commit messages and branch names:
+
+```bash
+/git                    # Show git status
+/commit                 # Generate commit message
+/commit "your message"  # Commit with message
+/branch implement auth  # Suggests: feature/auth
+```
+
+Auto-generated commit messages follow conventional commits format:
+```
+feat(session): add smart context loading
+
+- Auto-detect relevant files from task
+- Support file, function, and keyword matching
+```
+
+## Learning from Failures
+
+Kira remembers past mistakes and warns you:
+
+```
+## Known Pitfalls (learn from past mistakes)
+
+⚠️ **Known Issue (SyntaxError)**: missing closing parenthesis
+   **Solution**: Check all function definitions have matching parens
+```
+
+When autonomous mode detects an error:
+1. Records the error type and context
+2. Stores the solution when fixed
+3. Warns about similar issues in future tasks
 
 ## Run Logs
 
