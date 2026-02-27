@@ -4,338 +4,105 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-kira is a CLI wrapper for kiro-cli that adds:
-- **Persistent memory** across sessions (SQLite with FTS5)
-- **Skills system** for reusable prompts/workflows (YAML files)
-- **Session management** with memory injection
-- **Thinking mode** for two-phase execution (analyze then execute)
-- **Model selection** with aliases (fast/smart/best)
-- **Agent spawning** for specialized task handling
-- **Workflow orchestration** for multi-stage coding tasks
+kira is an agentic CLI and web app built on top of kiro-cli. It adds persistent memory (SQLite + FTS5), a skills/rules system, multi-phase deep reasoning, autonomous self-correction, and a real-time Kanban board web UI.
 
-It delegates LLM interaction to kiro-cli using non-interactive mode (prompts via stdin).
-
-## kiro-cli Integration
-
-KiroClient invokes kiro-cli in non-interactive mode:
-```bash
-kiro-cli chat --no-interactive --wrap never --trust-all-tools [--model MODEL]
-```
-
-Key implementation details:
-- **Prompts sent via stdin** (not command-line arguments)
-- **Output streamed from stdout** with real-time filtering
-- **ANSI codes and banners filtered** for clean output
-- **Uses `--wrap never`** to disable line wrapping
-- **Auto read/write access** to current working directory (trust_all_tools: true by default)
-
-## Tech Stack
-
-- Python 3.12+
-- typer (CLI framework)
-- rich (terminal output)
-- pyyaml (skill files)
-- SQLite with FTS5 (memory storage)
+The CLI delegates all LLM interaction to kiro-cli via subprocess — prompts are sent through stdin in `--no-interactive` mode, and stdout is streamed back with ANSI/banner filtering (see `core/client.py` for ~30 filter patterns).
 
 ## Development Commands
 
 ```bash
 # Setup
-python -m venv .venv
-source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Run
+# Run CLI
 kira                              # Interactive REPL
-kira chat "your prompt"           # One-shot prompt
-kira chat -s architect "Design"   # With skill
-kira chat -m opus "Complex task"  # With model
-kira chat -T "Plan and execute"   # Thinking mode
-kira chat -W coding "Build API"   # Workflow
+kira chat "prompt"                # One-shot
+kira serve                        # Start web backend (port 8000)
+
+# Run full-stack (backend + React frontend)
+./scripts/start.sh                # Requires Node 22 (nvm use 22)
+./scripts/stop.sh
 
 # Test
-pytest
+pytest                            # asyncio_mode = "auto" in config
+pytest tests/test_foo.py          # Single file
+pytest tests/test_foo.py::test_x  # Single test
 
 # Lint
 ruff check src/
 ruff format src/
+
+# Frontend (in frontend/)
+npm install && npm run dev        # Dev server on port 5173
+npm run build                     # Production build
 ```
 
 ## Architecture
 
-```
-src/kira/
-├── cli/                    # CLI commands (typer)
-│   ├── app.py              # Main entry point
-│   └── commands/           # Subcommands: chat, memory, skills, config
-├── core/
-│   ├── kiro.py             # KiroClient subprocess wrapper
-│   ├── session.py          # SessionManager with memory injection
-│   ├── config.py           # Configuration loading
-│   └── models.py           # Model aliases (fast/smart/best)
-├── memory/
-│   ├── store.py            # MemoryStore (SQLite + FTS5)
-│   └── models.py           # Memory dataclass
-├── skills/
-│   ├── manager.py          # SkillManager
-│   └── builtin/            # Built-in skill YAML files
-├── rules/                  # Coding rules system
-│   ├── manager.py          # RulesManager (auto-loads rules)
-│   ├── models.py           # Rule, RuleSet, RuleCategory
-│   └── builtin/            # Built-in rules (coding, refactoring, ui-design)
-├── thinking/               # Deep reasoning mode (7 phases)
-│   ├── reasoning.py        # DeepReasoning (main reasoning engine)
-│   ├── planner.py          # ThinkingPlanner (legacy two-phase)
-│   ├── executor.py         # ThinkingExecutor (legacy execution)
-│   └── models.py           # ThinkingResult, Verification, Complexity
-├── agents/                 # Agent spawning system
-│   ├── classifier.py       # TaskClassifier (keyword-based)
-│   ├── registry.py         # AgentRegistry with built-in agents
-│   ├── spawner.py          # AgentSpawner lifecycle
-│   └── models.py           # TaskType, ClassifiedTask
-└── workflows/              # Multi-stage workflow orchestration
-    ├── models.py           # Workflow, Stage, StageResult
-    ├── coding.py           # CODING_WORKFLOW definition
-    ├── orchestrator.py     # WorkflowOrchestrator
-    └── detector.py         # CodingTaskDetector
-```
+The codebase has two main surfaces: a **CLI** (typer) and a **web backend** (FastAPI), sharing core logic.
 
-## Key Features
+### CLI Flow (`src/kira/cli/`)
 
-### Deep Reasoning Mode (`-T`)
-Adaptive multi-phase reasoning with self-critique, loop-back, and verification:
-```bash
-kira chat -T "implement user authentication"
-```
+`app.py` is the typer entry point. The `chat` command routes to one of four async runners based on flags:
+- `_run_one_shot()` — default, sends prompt through `SessionManager.build_prompt()` → `KiraClient.run()`
+- `_run_thinking()` — 7-phase deep reasoning via `DeepReasoning`, then executes refined plan
+- `_run_autonomous()` — full pipeline: reasoning → execution → self-correction via `KiraAgent`
+- `_run_workflow()` — multi-stage orchestration (architect → coder → reviewer → docs)
 
-**7 Thinking Phases + Execution:**
-1. **Understand** - Deep analysis of task, implicit requirements, constraints
-2. **Explore** - Brainstorm 3-4 different approaches with pros/cons
-3. **Analyze** - Evaluate approaches, identify issues and mitigations
-4. **Plan** - Create detailed step-by-step execution plan
-5. **Critique** - Self-critique the plan, find weaknesses and blind spots
-6. **Refine** - Improve plan based on critique, increase confidence
-7. **Verify** - Final validation against original requirements (NEW)
-8. **Execute** - Run the refined plan with full context
+The `serve` command starts the FastAPI backend via uvicorn.
 
-**Advanced Features:**
-- **Adaptive Phases**: Trivial tasks skip exploration/critique (UNDERSTAND → PLAN only)
-- **Confidence Loop-back**: If critique confidence < 50%, loops back to EXPLORE
-- **Phase-Specific Models**: Uses faster models for simple phases, best for critique/refine
-- **Memory-Informed**: Pulls relevant past reasoning from memory
-- **Streaming Output**: Shows each phase as it completes
+### Core Pipeline (`src/kira/core/`)
 
-**Output includes:**
-- Task understanding with success criteria
-- Multiple approaches evaluated
-- Chosen approach with reasoning
-- Detailed execution steps with verification
-- Self-critique with confidence score
-- Refined plan addressing weaknesses
-- Final verification against requirements
+1. `Config.load()` merges `~/.kira/config.yaml` + `.kira/config.yaml`
+2. `SessionManager` assembles the full prompt: personality + memory context + skills + rules + user prompt
+3. `KiraClient` spawns kiro-cli subprocess, streams stdout, filters ANSI/banners line-by-line
+4. Response is scanned for `[REMEMBER:key]` and `[PROJECT:key]` markers → auto-extracted to memory
 
-### Model Selection
-Use aliases or full model names:
-```bash
-kira run -M fast "quick question"    # claude-3-haiku
-kira run -M smart "moderate task"    # claude-sonnet-4
-kira run -M best "complex analysis"  # claude-opus-4
-```
+Key files:
+- `client.py` — subprocess wrapper, ANSI filtering, `run()` yields async chunks
+- `session.py` — prompt assembly, memory injection, marker extraction
+- `agent.py` — `KiraAgent` for autonomous mode (reasoning + correction loop)
+- `models.py` — model alias resolution (fast→haiku, smart→sonnet, best→opus)
 
-### Workflow Orchestration
-Multi-stage workflows for coding tasks:
-```bash
-kira run -W coding "Build a user API"
-kira run --auto-workflow "Implement authentication"
-kira run -W coding --skip reviewer --skip docs "Quick fix"
-```
+### Web Backend (`src/kira/web/`)
 
-**Coding workflow stages:**
-1. architect - Design solution architecture
-2. coder - Implement the solution
-3. reviewer - Review implementation (optional)
-4. docs - Update documentation (optional)
+FastAPI app factory pattern in `app.py` with lifespan that inits SQLite + ChromaDB.
 
-### Agent System
-Task classification and specialized agent spawning:
-- TaskClassifier identifies task type (CODING, ARCHITECTURE, DEBUGGING, etc.)
-- AgentRegistry holds agent specs with skills and prompts
-- AgentSpawner manages agent lifecycle
+Routers: `auth` (JWT), `boards`, `cards`, `events` (SSE real-time), `jira` (bidirectional sync), `search` (ChromaDB + SQL fallback), `agents` (AI workflow orchestration).
 
-### Coding Rules System
-Auto-injected best practices based on task type:
+Each feature follows the pattern: `router.py` (endpoints) → `service.py` (business logic) → `models.py` (Pydantic).
 
-**Built-in rulesets:**
-- `coding.yaml` - Clean code, error handling, types, naming
-- `refactoring.yaml` - Safe changes, preserve behavior, test first
-- `ui-design.yaml` - Accessibility, responsive, UX patterns
+Database: aiosqlite with migrations in `web/db/migrations/`. Demo data seeded on first run via `seed.py`.
 
-**Rule loading (priority order):**
-1. `.kira/rules/` - Project-specific (git-tracked)
-2. `~/.kira/rules/` - User preferences
-3. `src/kira/rules/builtin/` - Defaults
+### Frontend (`frontend/`)
 
-**Auto-detection:**
-Rules are matched by trigger keywords in the task:
-- "implement", "code", "function" → coding rules
-- "refactor", "improve", "simplify" → refactoring rules
-- "ui", "design", "component", "form" → ui-design rules
+React 19 + TypeScript + Vite 7. State management via Zustand, data fetching via TanStack Query, drag-and-drop via dnd-kit. Requires Node 22.
+
+### Other Subsystems
+
+- **Memory** (`memory/`) — SQLite + FTS5 with decay (5%/week), relevance scoring, auto-extraction, failure learning
+- **Thinking** (`thinking/`) — 7-phase reasoning: UNDERSTAND → EXPLORE → ANALYZE → PLAN → CRITIQUE → REFINE → VERIFY, then execute. Adaptive: trivial tasks skip phases. Loops back to EXPLORE if confidence < 50%
+- **Correction** (`correction/`) — `SelfCorrector` with `FailureAnalyzer` + `PlanReviser`, max 3 retries
+- **Skills** (`skills/`) — YAML files loaded from builtin → `~/.kira/skills/` → `.kira/skills/`
+- **Rules** (`rules/`) — Auto-injected by keyword triggers (e.g., "refactor" → refactoring.yaml). Priority: project → user → builtin
+- **Integrations** (`integrations/`) — Jira REST v2 client, Chalk API client
+- **Context** (`context/`) — `SmartContextLoader` auto-detects relevant files from task description
+- **Workflows** (`workflows/`) — `WorkflowOrchestrator` runs multi-stage workflows via `AgentSpawner`
 
 ## Key Patterns
 
-### Memory Injection
-Session manager injects relevant memories into prompts before sending to kiro-cli:
-```python
-session = session_manager.start(memory_tags=["project"])
-full_prompt = session_manager.build_prompt(user_prompt)
-```
-
-### Memory Extraction
-Agent can output `[REMEMBER:key] content` markers which are automatically extracted and stored:
-```python
-saved = session_manager.save_memories(response)
-```
-
-### Project Memory (Team Sharing)
-Project-specific knowledge is stored in `.kira/project-memory.yaml` and shared via git:
-- Use `[PROJECT:key] content` markers to save project knowledge
-- REPL commands: `/project`, `/project add`, `/project search`
-- Automatically loaded when working in a project with `.kira/` directory
-- Human-readable YAML format for easy review and merge
-
-Example marker in agent output:
-```
-[PROJECT:api:auth] This project uses JWT tokens with refresh token rotation
-```
-
-### Skills
-Skills are YAML files with name, description, and prompt. Loaded from:
-1. `src/kira/skills/builtin/` (shipped with package)
-2. `~/.kira/skills/` (user-defined)
-3. `.kira/skills/` (project-local)
-
-**Built-in skills:** architect, reviewer, researcher, coder, debugger, documenter
-
-### Workflow Detection
-CodingTaskDetector uses aggressive regex patterns to identify coding tasks:
-- Strong patterns: `implement.*feature`, `create.*api`, `build.*endpoint`
-- Context clues: function, class, module, api, database
-- Confidence threshold: 0.6 (configurable)
+- **All I/O is async**: aiosqlite, asyncio subprocess, FastAPI async handlers. CLI uses `asyncio.run()` at the boundary.
+- **Prompt assembly order**: personality → memory context → project memory → skill prompts → rules → smart context → user prompt (see `SessionManager.build_prompt()`)
+- **kiro-cli invocation**: `kiro-cli chat --no-interactive --wrap never --trust-all-tools [--model MODEL]` — prompt via stdin, not args.
+- **Output filtering**: `KiraClient._clean_line()` applies ~30 regex patterns to strip kiro-cli chrome. If kiro-cli output format changes, these patterns need updating.
+- **Memory markers**: `[REMEMBER:key] content` → personal memory (`~/.kira/memory.db`), `[PROJECT:key] content` → team memory (`.kira/project-memory.yaml`).
 
 ## Configuration
 
-User config: `~/.kira/config.yaml`
-Project config: `.kira/agent.yaml`
-User memory: `~/.kira/memory.db` (personal, not shared)
-Project memory: `.kira/project-memory.yaml` (shared via git)
-Project context: `.kira/context.md` (shared via git)
-
-```yaml
-# Example config
-defaults:
-  agent: orchestrator
-  trust_all_tools: true  # Auto read/write in working directory
-
-kiro:
-  model: claude-sonnet-4
-  timeout: 600
-
-memory:
-  enabled: true
-  max_context_tokens: 2000
-  min_importance: 3
-  auto_extract: true
-
-thinking:
-  enabled: false
-  planning_model: claude-3-haiku
-  show_plan: true
-  save_plans: true
-
-autonomous:
-  enabled: true              # Self-verification and auto-retry
-  max_retries: 3             # Retry failures up to N times
-  run_tests: true            # Run tests after code changes
-  verification_enabled: true # Verify syntax/imports
-
-workflow:
-  auto_detect: true
-  detection_threshold: 0.6
-  interactive: true
-
-agents:
-  auto_spawn: false
-  use_llm_classification: false
-  default_agent: general
-
-skills:
-  - architect
-  - researcher
-```
-
-## CLI Reference (Claude Code-like Interface)
-
-```bash
-# Interactive REPL (no arguments)
-kira                              # Start interactive mode
-kira -c                           # Resume previous conversation
-kira -m opus                      # Interactive with specific model
-
-# One-shot prompts
-kira chat "explain this code"     # Send prompt, get response
-kira chat -p "summarize this"     # Print-only (no follow-up)
-kira chat -c "continue this"      # Continue previous conversation
-kira chat -m opus "complex task"  # With specific model
-kira chat -s architect "design"   # With skill
-kira chat -T "plan this"          # Thinking mode (two-phase)
-kira chat -W coding "build API"   # Run coding workflow
-kira chat --auto-workflow "task"  # Auto-detect workflow
-
-# Memory management
-kira memory list
-kira memory search "query"
-kira memory add "key" "content"
-kira memory delete "key"
-
-# Skills management
-kira skills list
-kira skills show <name>
-kira skills create <name>
-
-# Configuration
-kira config show
-kira config set <key> <value>
-
-# Status
-kira status
-kira version
-```
-
-## Interactive REPL Commands
-
-When in interactive mode, you can use these commands:
-- `/help` - Show help
-- `/exit`, `/quit` - Exit REPL
-- `/clear` - Clear conversation
-- `/model` - Interactive model selection (shows numbered menu)
-- `/model <name>` - Switch model directly (fast/smart/opus)
-- `/skill <name>` - Activate a skill
-- `/skills` - List available skills
-- `/memory` - Show memory stats
-- `/project` - Show project knowledge (shared via git)
-- `/status` - Show system status
-
-**Model Selection Example:**
-```
-> /model
-
-Select Model
-
-#   Model                  Tier     Description
-1   ✓ Claude Sonnet 4      smart    Balanced performance (default)
-2     Claude 3 Haiku       fast     Fastest, most cost-effective
-3     Claude Opus 4        best     Most capable, best for complex tasks
-
-Select model (1-3) or press Enter to cancel: 3
-Model set to: Claude Opus 4
-```
+- User config: `~/.kira/config.yaml`
+- Project config: `.kira/config.yaml` (overrides user)
+- User memory DB: `~/.kira/memory.db`
+- Project memory: `.kira/project-memory.yaml` (git-tracked)
+- Kanban DB: `.kira/kanban.db` (local only)
+- Ruff: line-length 100, target py312, select E/F/I/UP/B/SIM

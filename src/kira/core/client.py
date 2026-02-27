@@ -471,7 +471,10 @@ class KiraClient:
             "should_remind": should_remind,
             "version": version,
             "age_days": age_days,
-            "message": f"kiro-cli {version} is {age_days} days old. Run 'kiro-cli update' to check for updates."
+            "message": (
+                f"kiro-cli {version} is {age_days} days old. "
+                "Run 'kiro-cli update' to check for updates."
+            )
             if should_remind
             else None,
         }

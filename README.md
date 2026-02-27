@@ -1,436 +1,220 @@
-# kira
+# Kira
 
-Agentic CLI wrapper for [kiro-cli](https://kiro.dev) with persistent memory, skills, and team collaboration.
+AI-powered Kanban board with local agent workers.
 
-## Features
+## What It Does
 
-- **Smart Memory**: Cross-session context with auto-extraction, decay, and relevance scoring
-- **Coding Rules**: Auto-injected best practices for coding, refactoring, and UI design
-- **Autonomous Mode**: Self-verification, auto-retry on failures, delivers working solutions
-- **Smart Context**: Auto-detects relevant files from your task description
-- **Git Assistant**: Smart commit messages, branch name suggestions
-- **Learning from Failures**: Remembers errors and solutions, warns about known pitfalls
-- **Run Logs**: Automatic logging of all sessions with search and history
-- **Skills System**: Reusable prompts and workflows
-- **Team Context**: Shared project knowledge via git-tracked files
-- **Interactive REPL**: Dynamic prompts, tab completion, quick toggles
-- **Thinking Mode**: Adaptive multi-phase reasoning with self-critique, loop-back, and verification
+Kira is a real-time Kanban board where columns can have AI agents attached. When a card enters an agent-enabled column, the agent picks up the work automatically -- moving cards through your workflow without manual intervention.
 
-## Installation
+- **Kanban board** with drag-and-drop, real-time SSE updates, search (ChromaDB + SQL fallback)
+- **Agent columns** that trigger AI execution when cards land in them
+- **Local workers** that run on user machines, poll the server for tasks, and execute them using local tools (kiro-cli, Jira, GitLab)
+- **Jira bidirectional sync** -- import from and push to Jira
+- **GitLab integration** -- per-user credentials, linked to cards
+- **Authentication** -- mock mode (pick a username) or CentAuth SSO
 
-**macOS/Linux:**
-```bash
-curl -sSL https://raw.githubusercontent.com/kapella-hub/kira/main/install.sh | bash
-```
-
-**Windows (PowerShell):**
-```powershell
-irm https://raw.githubusercontent.com/kapella-hub/kira/main/install.ps1 | iex
-```
-
-**Update:**
-```bash
-kira update
-```
-
-**Requirements:**
-- Python 3.12+
-- [kiro-cli](https://kiro.dev) (for LLM interaction)
-
-## Quick Start
-
-```bash
-# Interactive REPL (recommended)
-kira
-
-# One-shot prompt
-kira chat "Explain this codebase"
-
-# With thinking mode
-kira chat -T "Design a REST API"
-
-# Resume previous session
-kira chat -r "Continue from before"
-```
-
-## Interactive REPL
-
-Start the REPL with just `kira`:
+## Architecture
 
 ```
-Kira [B][TMC] >
+Browser (React SPA)
+    |
+    | HTTP / SSE
+    v
++-------------------+          +---------------------+
+|  Frontend (nginx)  |  proxy  |  Backend (FastAPI)   |
+|  :80               |-------->|  :8000               |
++-------------------+          |                      |
+                               |  SQLite (kanban.db)  |
+                               |  ChromaDB (optional)  |
+                               +----------+-----------+
+                                          |
+                                   task queue
+                                   (poll/claim)
+                                          |
+                    +---------------------+---------------------+
+                    |                     |                     |
+              +-----+------+       +-----+------+       +-----+------+
+              |  Worker A   |       |  Worker B   |       |  Worker C   |
+              |  (alice)    |       |  (bob)      |       |  (charlie)  |
+              |  localhost  |       |  laptop     |       |  CI runner  |
+              +-------------+       +-------------+       +-------------+
 ```
 
-The prompt shows:
-- Model tier: `[F]`ast, `[S]`mart, `[B]`est
-- Active modes: `[T]`hinking, `[A]`utonomous, `[M]`emory, `[C]`ontext
+**Backend** -- FastAPI app serving the REST API, SSE event stream, and the agent install endpoint. SQLite for persistence, ChromaDB for semantic search (optional, falls back to SQL LIKE).
 
-### Quick Commands
+**Frontend** -- React 19 SPA served by nginx. Communicates with the backend via `/api/` proxy. All client-side routing with SPA fallback.
+
+**Workers** -- Lightweight daemons running on user machines. Each worker authenticates, registers with the server, then polls for tasks. When a task is claimed, the worker executes it locally (using kiro-cli, Jira API, GitLab API, etc.) and reports results back.
+
+## Quick Start (Docker)
+
+**Prerequisites:** Docker and Docker Compose.
 
 ```bash
-/help                  # Show all commands
-/model opus            # Switch model (fast, smart, opus)
-/memory on|off         # Toggle memory
-/project               # Show project knowledge (shared)
-/thinking on|off       # Toggle deep reasoning
-/config                # Show all settings
-/status                # System status
+# Clone and start
+git clone <repository-url> && cd kira
+docker compose up --build -d
 ```
 
-## Memory System
+The board is available at **http://localhost**. The API is at **http://localhost:8000** (docs at `/docs`).
 
-Kira has two memory systems:
+In mock auth mode (the default), pick any username to log in -- no password required. Demo users `alice`, `bob`, and `charlie` are pre-seeded.
 
-| Type | Storage | Shared | Use Case |
-|------|---------|--------|----------|
-| **Personal** | `~/.kira/memory.db` | No | Your preferences, learnings |
-| **Project** | `.kira/project-memory.yaml` | Yes (git) | Team knowledge |
+### Start a Worker
 
-### Memory Types
-
-- **Semantic**: Facts, definitions, concepts
-- **Episodic**: Conversations, events, decisions
-- **Procedural**: How-to, patterns, approaches
-
-### CLI Commands
+Workers run on your machine, outside Docker. Install the `kira` package first (see [Agent Installation](#agent-installation)), then:
 
 ```bash
-# Basic operations
-kira memory list                    # List all memories
-kira memory add "key" "content"     # Add memory
-kira memory get "key"               # Get specific memory
-kira memory search "query"          # Full-text search
-
-# Filter by type
-kira memory list --type procedural
-kira memory add "api:auth" "OAuth2 flow" --type procedural
-
-# View with decay info
-kira memory list --decay
-kira memory stats --decay
-
-# Maintenance
-kira memory cleanup --dry-run       # Preview cleanup
-kira memory cleanup                 # Remove old low-importance memories
-kira memory consolidate --dry-run   # Preview duplicate merging
-kira memory consolidate             # Merge similar memories
+kira worker --server http://localhost:8000
 ```
 
-### Auto-Extraction
+The worker prompts for your username (and password, if CentAuth is enabled). It registers, sends heartbeats, and polls for tasks.
 
-Memories are automatically extracted from responses:
+## Development
 
-1. **Personal markers**: `[REMEMBER:key] content` → saved to `~/.kira/memory.db`
-2. **Project markers**: `[PROJECT:key] content` → saved to `.kira/project-memory.yaml`
-3. **Pattern detection**: Decisions, solutions, important notes
+**Prerequisites:** Python 3.12+, Node 22 (via nvm).
 
-### Decay & Relevance
-
-- Importance decays 5% per week without access
-- Memories are scored for relevance to current task
-- Cleanup removes old, low-importance entries
-
-## Team Context
-
-Share project knowledge with your team via git-tracked files in `.kira/`:
-
-### Project Memory (`.kira/project-memory.yaml`)
-
-Shared knowledge that persists across the team:
+### Backend + Frontend (dev servers)
 
 ```bash
-# In REPL
-/project               # Show project knowledge
-/project add key text  # Add project memory
-/project search query  # Search project memories
-/project init          # Initialize project memory
+# Setup Python environment
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+
+# Start both servers (backend :8000, frontend :5173)
+./scripts/start.sh
+
+# Or start with a worker attached
+./scripts/start.sh alice
+
+# Stop everything
+./scripts/stop.sh
 ```
 
-**Auto-save with markers:**
-```
-[PROJECT:api:auth] This project uses JWT with refresh token rotation
-[PROJECT:db:schema] Users table has soft deletes via deleted_at column
-```
+The start script launches:
+- Backend on **http://localhost:8000** (uvicorn with `--reload`)
+- Frontend on **http://localhost:5173** (Vite dev server)
+- Worker (optional, if username argument provided)
 
-### Project Context (`.kira/context.md`)
+Logs are written to `.logs/backend.log`, `.logs/frontend.log`, `.logs/worker.log`.
 
-Auto-analyzed project structure and notes:
+### Backend Only
 
 ```bash
-# In REPL
-/context init          # Analyze project
-/context refresh       # Update analysis
-/context note "text"   # Add team note
-/context issue "bug"   # Record known issue
-/context log           # Show change history
+kira serve --reload
 ```
 
-### Storage
-
-```
-.kira/
-├── project-memory.yaml  # Team knowledge (commit this!)
-├── context.md           # Project analysis (commit this!)
-├── changelog.md         # Change history (commit this!)
-└── config.yaml          # Project config (optional)
-```
-
-All `.kira/` files are git-tracked, so team knowledge syncs automatically.
-
-## Skills
-
-Reusable prompts and workflows:
+### Frontend Only
 
 ```bash
-kira skills list                   # Available skills
-kira skills show architect         # View skill details
-kira chat -s architect "Design"    # Use skill
-
-# Custom skills
-kira skills add myskill -d "Description" --local
+cd frontend
+npm install
+npm run dev
 ```
 
-### Built-in Skills
-
-- **architect**: Design software architecture
-- **reviewer**: Thorough code review
-- **researcher**: Investigate before recommending
-- **coder**: Implement with best practices
-- **debugger**: Systematic problem diagnosis
-
-## Coding Rules
-
-Kira automatically injects relevant coding rules based on your task:
-
-| Category | Triggers | Focus |
-|----------|----------|-------|
-| **Coding** | implement, code, function, class | Clean code, error handling, types |
-| **Refactoring** | refactor, improve, simplify | Safe changes, preserve behavior |
-| **UI Design** | ui, design, component, form | Accessibility, responsive, UX |
-
-Rules are auto-detected from your prompt and injected into the context.
-
-### Rule Sources (priority order)
-
-1. **Project** (`.kira/rules/`) - Team-specific, git-tracked
-2. **User** (`~/.kira/rules/`) - Personal preferences
-3. **Built-in** - Modern best practices
-
-### Custom Rules
-
-Create `.kira/rules/coding.yaml` to override defaults:
-
-```yaml
-name: My Coding Rules
-category: coding
-triggers:
-  - implement
-  - code
-
-principles:
-  - Always use TypeScript strict mode
-  - Prefer functional components
-
-rules:
-  - text: All functions must have JSDoc comments
-    priority: 9
-  - text: Use Zod for runtime validation
-    priority: 8
-
-anti_patterns:
-  - Using any type
-  - Inline styles in React
-```
-
-### Disable Rules
+### Tests and Linting
 
 ```bash
-# In REPL
-/rules off
-
-# In config.yaml
-rules:
-  enabled: false
+pytest                          # All tests (asyncio_mode = "auto")
+pytest tests/test_foo.py        # Single file
+ruff check src/                 # Lint
+ruff format src/                # Format
 ```
-
-## Autonomous Mode
-
-When enabled, Kira verifies its work and self-corrects:
-
-```bash
-/autonomous on         # Enable in REPL
-kira chat -A "task"    # Enable for one-shot
-```
-
-**What it does:**
-- Verifies syntax and imports after code changes
-- Runs tests automatically (if configured)
-- Retries failed operations up to N times
-- Makes small decisions without asking
-
-**Configuration:**
-```yaml
-autonomous:
-  enabled: true
-  max_retries: 3        # Auto-retry failures
-  run_tests: true       # Run tests after changes
-  verification_enabled: true
-```
-
-**Philosophy:** Kira delivers **working solutions**, not attempts. Small decisions (naming, style, minor implementation choices) are made autonomously. Only major architectural or business decisions require user input.
-
-**Resourcefulness:** Kira doesn't say "you need to install X" - it installs it. Need a file? Downloads it. Need docs? Fetches them. It uses all available tools (shell, web, file system) to get things done independently.
-
-## Smart Context
-
-Kira auto-detects relevant files from your task:
-
-```
-> fix the bug in session.py
-
-[Kira automatically loads session.py and related files into context]
-```
-
-Detects:
-- Direct file mentions (`session.py`, `config.yaml`)
-- Function/class references (`build_prompt`, `SessionManager`)
-- Import paths (`from kira.core.session`)
-- Keywords (auth → finds auth-related files)
-
-## Git Assistant
-
-Smart commit messages and branch names:
-
-```bash
-/git                    # Show git status
-/commit                 # Generate commit message
-/commit "your message"  # Commit with message
-/branch implement auth  # Suggests: feature/auth
-```
-
-Auto-generated commit messages follow conventional commits format:
-```
-feat(session): add smart context loading
-
-- Auto-detect relevant files from task
-- Support file, function, and keyword matching
-```
-
-## Learning from Failures
-
-Kira remembers past mistakes and warns you:
-
-```
-## Known Pitfalls (learn from past mistakes)
-
-⚠️ **Known Issue (SyntaxError)**: missing closing parenthesis
-   **Solution**: Check all function definitions have matching parens
-```
-
-When autonomous mode detects an error:
-1. Records the error type and context
-2. Stores the solution when fixed
-3. Warns about similar issues in future tasks
-
-## Run Logs
-
-Kira automatically logs all chat sessions and REPL interactions for history and debugging.
-
-### CLI Commands
-
-```bash
-# View recent runs
-kira logs list                    # List recent runs
-kira logs list --mode repl        # Filter by mode (repl, chat, thinking, autonomous)
-kira logs list -n 50              # Show more runs
-
-# View run details
-kira logs show 42                 # Show run #42
-kira logs show 42 --full          # Include full prompts/responses
-kira logs last                    # Show most recent run
-
-# Search history
-kira logs search "authentication" # Search prompts and responses
-
-# Statistics
-kira logs stats                   # Show log statistics
-
-# Cleanup
-kira logs clear --older-than 30   # Clear runs older than 30 days
-kira logs clear --mode chat       # Clear only chat runs
-```
-
-### REPL Commands
-
-```bash
-/logs                  # Show recent runs
-/logs stats            # Log statistics
-/logs current          # Current session info
-```
-
-### Storage
-
-Logs are stored at `~/.kira/data/runs.db` (SQLite).
 
 ## Configuration
 
-### Quick Toggles (REPL)
+All configuration is via environment variables. Set them in `.env` (Docker Compose reads this automatically) or export them in your shell.
+
+| Variable | Default | Description |
+|---|---|---|
+| `KIRA_AUTH_MODE` | `mock` | `mock` (pick any username) or `centauth` (SSO) |
+| `KIRA_JWT_SECRET` | dev default | **Change in production.** Secret for signing JWT tokens. |
+| `KIRA_DB_PATH` | `.kira/kanban.db` | Path to the SQLite database |
+| `KIRA_CHROMADB_PATH` | `.kira/chromadb` | Path to ChromaDB storage (optional) |
+| `KIRA_CORS_ORIGINS` | localhost variants | Comma-separated allowed origins |
+| `KIRA_DEBUG` | `false` | Enable debug mode |
+| `KIRA_HOST` | `0.0.0.0` | Host to bind the backend to |
+| `KIRA_PORT` | `8000` | Port for the backend |
+| `KIRA_CENTAUTH_URL` | (empty) | CentAuth server URL (required if `auth_mode=centauth`) |
+| `KIRA_CENTAUTH_APP_NAME` | `kira` | App name registered in CentAuth |
+| `KIRA_CENTAUTH_VERIFY_SSL` | `true` | Verify SSL when connecting to CentAuth |
+
+Copy `.env.example` to `.env` and adjust:
 
 ```bash
-/model opus           # claude-opus-4
-/model fast           # claude-3-haiku
-/memory off           # Disable memory
-/thinking on          # Enable deep reasoning
-/autonomous on        # Enable self-verification
-/trust on             # Auto-approve tools
-/timeout 600          # Set timeout
-/config save          # Persist changes
+cp .env.example .env
 ```
 
-### Config Files
+## Agent Installation
 
-User config (`~/.kira/config.yaml`):
-```yaml
-defaults:
-  trust_all_tools: true
+The running Kira server hosts a self-install script. Users on any machine with Python 3.12+ can install the agent with a single command:
 
-kira:
-  model: claude-opus-4
-  timeout: 1200
-
-memory:
-  enabled: true
-  max_context_tokens: 2000
-  min_importance: 3
-
-thinking:
-  enabled: true
-
-autonomous:
-  enabled: true
-  max_retries: 3
-  run_tests: true
-
-personality:
-  enabled: true
-  name: Kira
+```bash
+curl -sSL http://your-kira-server/api/agent/install.sh | bash
 ```
 
-Project config (`.kira/config.yaml`) overrides user config.
+This script:
+1. Checks for Python 3.12+
+2. Creates a virtualenv at `~/.kira/venv`
+3. Downloads the `kira` wheel from the server (`/api/agent/package`)
+4. Installs it and symlinks `kira` to `~/.local/bin/kira`
+5. Installs a system service (launchd on macOS, systemd on Linux)
+6. Starts the agent daemon
 
-## How It Works
+The agent is idempotent -- running the script again upgrades if a new version is available, or starts the agent if already installed.
 
-1. **Memory Injection**: Personal memories from `~/.kira/memory.db`
-2. **Project Memory**: Team knowledge from `.kira/project-memory.yaml`
-3. **Context Loading**: Project analysis from `.kira/context.md`
-4. **Skill Activation**: Selected skill prompts included
-5. **kiro-cli Execution**: Full prompt sent to kiro-cli
-6. **Memory Extraction**: Responses scanned for `[REMEMBER:]` and `[PROJECT:]` markers
+On macOS, a `.command` file (double-clickable) is also available at `/api/agent/install.command`.
 
-kiro-cli handles:
-- LLM interaction
-- Tool execution (file, shell, web)
-- Extended thinking
+### Agent Commands
+
+```bash
+kira agent start       # Start the agent daemon
+kira agent install     # Install as system service (auto-starts on login)
+kira agent uninstall   # Remove system service
+kira agent status      # Show agent status
+```
+
+### Worker Commands
+
+```bash
+kira worker                                          # Connect to localhost:8000
+kira worker --server http://kira.internal:8000       # Connect to remote server
+kira worker --user alice --password secret            # Non-interactive auth
+```
+
+## Project Structure
+
+```
+src/kira/
+  cli/              CLI entry point (typer): serve, worker, agent, version
+  web/              FastAPI backend
+    auth/           Authentication (mock + CentAuth SSO)
+    boards/         Board CRUD
+    cards/          Card operations
+    tasks/          Task queue (pending -> claimed -> complete/failed)
+    workers/        Worker registration, heartbeat, task polling
+    events/         SSE real-time event stream
+    jira/           Jira bidirectional sync
+    gitlab/         GitLab integration
+    search/         ChromaDB + SQL fallback search
+    agent_install/  Serves install script and wheel for remote agents
+    db/             SQLite init, migrations, seed data
+  worker/           Worker daemon (polls server, executes tasks locally)
+  agent/            Agent daemon (browser-activated via WebSocket)
+  integrations/     Jira REST v2 client, Chalk API client
+  core/             Shared models, config, kiro-cli client
+frontend/           React 19 + TypeScript + Vite 7
+scripts/            Dev helper scripts (start, stop, restart, docker)
+docker/             nginx.conf for the frontend container
+```
+
+## Tech Stack
+
+**Backend:** Python 3.12, FastAPI, uvicorn, aiosqlite, PyJWT, httpx, sse-starlette, websockets
+
+**Frontend:** React 19, TypeScript 5.9, Vite 7, Tailwind CSS 4, Zustand, TanStack Query, dnd-kit, Framer Motion, React Router 7
+
+**Infrastructure:** Docker (multi-stage build), nginx, SQLite, ChromaDB (optional)
 
 ## License
 

@@ -1,0 +1,54 @@
+services:
+  backend:
+    build:
+      context: .
+      target: backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - kira-data:/app/.kira
+    env_file:
+      - .env
+    environment:
+      - KIRA_DB_PATH=/app/.kira/kanban.db
+      - KIRA_CHROMADB_PATH=/app/.kira/chromadb
+      - KIRA_CORS_ORIGINS=http://localhost,http://localhost:80
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+    networks:
+      - internal
+
+  frontend:
+    build:
+      context: .
+      target: frontend
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
+        reservations:
+          memory: 64M
+          cpus: "0.1"
+    networks:
+      - internal
+
+volumes:
+  kira-data:
+
+networks:
+  internal:
+    driver: bridge

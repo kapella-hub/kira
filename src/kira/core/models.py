@@ -131,10 +131,7 @@ def get_available_models(refresh: bool = False) -> list[ModelInfo]:
 
     if _cached_models is None or refresh:
         fetched = _fetch_models_from_kiro()
-        if fetched:
-            _cached_models = fetched
-        else:
-            _cached_models = _FALLBACK_MODELS.copy()
+        _cached_models = fetched or _FALLBACK_MODELS.copy()
 
     return _cached_models
 

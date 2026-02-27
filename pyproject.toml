@@ -4,12 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kira"
-version = "0.2.2"
-description = "Agentic CLI powered by kiro-cli with persistent memory, skills, and coding rules"
+version = "0.3.0"
+description = "Agent Kanban Board with worker-based AI execution"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
-keywords = ["cli", "ai", "agent", "llm", "coding", "automation"]
+keywords = ["cli", "ai", "agent", "kanban", "automation"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -27,7 +27,13 @@ dependencies = [
     "typer>=0.12",
     "rich>=13.0",
     "pyyaml>=6.0",
-    "prompt-toolkit>=3.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "aiosqlite>=0.20.0",
+    "sse-starlette>=2.0.0",
+    "pyjwt>=2.8.0",
+    "httpx>=0.27.0",
+    "websockets>=13.0",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +41,12 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "ruff>=0.4",
+]
+search = [
+    "chromadb>=0.5.0",
+]
+centauth = [
+    "centauthclient>=0.7",
 ]
 
 [project.scripts]
@@ -53,17 +65,16 @@ include = [
     "/LICENSE",
 ]
 
-# Include YAML files for skills and rules
-[tool.hatch.build.targets.wheel.force-include]
-"src/kira/skills/builtin" = "kira/skills/builtin"
-"src/kira/rules/builtin" = "kira/rules/builtin"
-
 [tool.ruff]
 line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/kira/web/agent_install/router.py" = ["E501"]  # embedded shell script
+"src/kira/worker/executors/planner.py" = ["E501"]  # AI prompt templates
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
